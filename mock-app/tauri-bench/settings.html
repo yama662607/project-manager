@@ -1,0 +1,69 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Settings</title>
+  </head>
+  <body>
+    <main class="settings">
+      <div class="tabs">
+        <button class="tab active" data-tab="general">General</button>
+        <button class="tab" data-tab="projects">Projects</button>
+      </div>
+
+      <section id="general" class="tab-content active">
+        <div class="field">
+          <label for="shortcut-input">Global Shortcut</label>
+          <input id="shortcut-input" type="text" readonly placeholder="Click and press shortcut..." />
+        </div>
+      </section>
+
+      <section id="projects" class="tab-content">
+        <div class="projects-layout">
+          <div class="project-sidebar">
+            <ul id="project-list"></ul>
+            <div class="sidebar-buttons">
+              <button id="add-project">+</button>
+              <button id="remove-project">&minus;</button>
+              <button id="browse-project" style="font-size:11px;flex:2;">Browse</button>
+            </div>
+          </div>
+          <div class="project-detail">
+            <div class="field">
+              <label for="field-name">Name</label>
+              <input id="field-name" type="text" />
+            </div>
+            <div class="field">
+              <label for="field-path">Path</label>
+              <input id="field-path" type="text" />
+            </div>
+            <div class="field">
+              <label for="field-openpaths">Open Paths</label>
+              <input id="field-openpaths" type="text" />
+            </div>
+            <div class="field">
+              <label for="field-aliases">Aliases (comma-separated)</label>
+              <input id="field-aliases" type="text" />
+            </div>
+            <div class="field">
+              <label for="field-tags">Tags (comma-separated)</label>
+              <input id="field-tags" type="text" />
+            </div>
+            <div class="field">
+              <label for="field-language">Language</label>
+              <input id="field-language" type="text" />
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <div class="actions">
+        <span id="status" class="status"></span>
+        <button id="cancel">Cancel</button>
+        <button id="save" class="primary">Save</button>
+      </div>
+    </main>
+    <script type="module" src="/src/settings.ts"></script>
+  </body>
+</html>

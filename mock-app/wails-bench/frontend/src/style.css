@@ -1,0 +1,212 @@
+:root {
+  --bg-deep: #14161b;
+  --bg-surface: #1c1f26;
+  --bg-elevated: #242730;
+  --border-hairline: rgba(255, 255, 255, 0.06);
+  --border-visible: rgba(255, 255, 255, 0.10);
+  --text-primary: rgba(255, 255, 255, 0.92);
+  --text-secondary: rgba(255, 255, 255, 0.48);
+  --text-tertiary: rgba(255, 255, 255, 0.30);
+  --accent: #d4a853;
+  --accent-glow: rgba(212, 168, 83, 0.15);
+  --accent-strong: rgba(212, 168, 83, 0.28);
+  --font-display: "SF Pro Display", -apple-system, BlinkMacSystemFont, sans-serif;
+  --font-mono: "SF Mono", ui-monospace, "Cascadia Code", Menlo, monospace;
+  color-scheme: dark;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  overflow: hidden;
+  background: var(--bg-deep);
+}
+
+body {
+  font-family: var(--font-display);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* Subtle noise texture overlay */
+body::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  opacity: 0.03;
+  pointer-events: none;
+  z-index: 100;
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)'/%3E%3C/svg%3E");
+}
+
+.palette {
+  width: 100%;
+  height: 100%;
+  padding: 18px 16px 14px;
+  display: grid;
+  grid-template-rows: 44px 1fr 22px auto;
+  gap: 10px;
+}
+
+/* ---- search ---- */
+.search-wrap {
+  position: relative;
+  height: 44px;
+}
+
+.search {
+  width: 100%;
+  height: 44px;
+  padding: 0 16px;
+  border: 1px solid var(--border-visible);
+  border-radius: 8px;
+  outline: none;
+  font: 400 20px/44px var(--font-display);
+  letter-spacing: -0.01em;
+  color: var(--text-primary);
+  background: var(--bg-surface);
+  caret-color: transparent;
+  transition: border-color 0.2s ease;
+}
+
+.search::placeholder {
+  color: var(--text-tertiary);
+}
+
+/* ---- caret ---- */
+.caret {
+  position: absolute;
+  left: var(--caret-left, 17px);
+  top: 10px;
+  width: 2px;
+  height: 24px;
+  border-radius: 1px;
+  background: var(--accent);
+  box-shadow: 0 0 6px var(--accent-glow);
+  opacity: 0;
+  pointer-events: none;
+}
+
+.palette.active .caret {
+  opacity: 1;
+  animation: caret-pulse 1s steps(1) infinite;
+}
+
+@keyframes caret-pulse {
+  0%, 48% { opacity: 1; }
+  49%, 100% { opacity: 0; }
+}
+
+/* ---- results ---- */
+.results {
+  overflow-y: auto;
+  overflow-x: hidden;
+  display: grid;
+  grid-auto-rows: 44px;
+  align-content: start;
+}
+
+.results::-webkit-scrollbar {
+  width: 4px;
+}
+
+.results::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.results::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.08);
+  border-radius: 2px;
+}
+
+/* ---- row ---- */
+.row {
+  display: grid;
+  grid-template-rows: 22px 16px;
+  align-content: center;
+  gap: 1px;
+  min-width: 0;
+  padding: 0 12px;
+  border-radius: 6px;
+  color: var(--text-primary);
+  font-size: 13px;
+  opacity: 0;
+  transform: translateY(4px);
+  animation: row-enter 0.25s ease forwards;
+}
+
+@keyframes row-enter {
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.row.selected {
+  background: var(--accent-strong);
+  box-shadow: inset 0 0 0 1px rgba(212, 168, 83, 0.15);
+}
+
+.row.selected .name {
+  color: #fff;
+}
+
+.name {
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  font-weight: 590;
+  font-size: 14px;
+  letter-spacing: -0.01em;
+  color: var(--text-primary);
+}
+
+.meta {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--text-secondary);
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+/* ---- footer ---- */
+.footer {
+  display: flex;
+  align-items: center;
+  padding: 0 4px;
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  color: var(--text-tertiary);
+  letter-spacing: 0.02em;
+}
+
+/* ---- toolbar ---- */
+.toolbar {
+  display: flex;
+  gap: 8px;
+}
+
+.toolbar button {
+  height: 28px;
+  padding: 0 12px;
+  border-radius: 6px;
+  border: 1px solid var(--border-visible);
+  background: var(--bg-surface);
+  color: var(--text-secondary);
+  font: 500 11.5px/1 var(--font-display);
+  letter-spacing: 0.01em;
+  cursor: pointer;
+  transition: background 0.15s ease, color 0.15s ease;
+}
+
+.toolbar button:hover {
+  background: var(--bg-elevated);
+  color: var(--text-primary);
+}

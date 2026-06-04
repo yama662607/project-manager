@@ -1,0 +1,28 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>TauriBench</title>
+  </head>
+  <body>
+    <main class="palette">
+      <div class="search-wrap">
+        <input
+          id="search"
+          class="search"
+          placeholder="Search projects"
+          autocomplete="off"
+          autocapitalize="off"
+          spellcheck="false"
+          inputmode="none"
+          readonly
+        />
+        <span id="caret" class="caret"></span>
+      </div>
+      <section id="results" class="results"></section>
+      <footer id="footer" class="footer">loading projects</footer>
+    </main>
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>

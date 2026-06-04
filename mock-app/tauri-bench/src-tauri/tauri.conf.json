@@ -1,0 +1,42 @@
+{
+  "$schema": "../../node_modules/@tauri-apps/cli/config.schema.json",
+  "productName": "TauriBench",
+  "version": "0.1.0",
+  "identifier": "dev.projectlauncher.bench.tauri",
+  "build": {
+    "beforeDevCommand": "bun run dev",
+    "devUrl": "http://127.0.0.1:5173",
+    "beforeBuildCommand": "bun run build:web",
+    "frontendDist": "../dist-web"
+  },
+  "app": {
+    "macOSPrivateApi": true,
+    "windows": [
+      {
+        "label": "main",
+        "title": "TauriBench",
+        "width": 760,
+        "height": 520,
+        "visible": false,
+        "resizable": false,
+        "decorations": true,
+        "transparent": false,
+        "alwaysOnTop": false,
+        "center": true
+      }
+    ],
+    "security": {
+      "csp": null
+    }
+  },
+  "bundle": {
+    "active": true,
+    "targets": ["app"],
+    "resources": {
+      "../../shared/projects.json": "projects.json"
+    },
+    "macOS": {
+      "minimumSystemVersion": "14.0"
+    }
+  }
+}

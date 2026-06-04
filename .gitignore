@@ -1,0 +1,28 @@
+# Build artifacts
+.build/
+target/
+dist/
+dist-web/
+node_modules/
+*.o
+*.d
+*.dia
+*.swiftdeps
+*.swiftmodule
+
+# IDE
+.idea/
+.vscode/
+*.xcworkspace
+*.xcuserdata
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Wails
+mock-app/.wails-bin/
+mock-app/wails-bench/build/
+
+# Misc
+*.log

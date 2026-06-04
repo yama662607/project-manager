@@ -1,0 +1,31 @@
+{
+  "name": "project-launcher-benchmark",
+  "private": true,
+  "type": "module",
+  "packageManager": "bun@1.3.14",
+  "workspaces": [
+    "tauri-bench",
+    "wails-bench/frontend"
+  ],
+  "scripts": {
+    "generate:fixtures": "bun tools/generate_fixtures.mjs",
+    "build:appkit": "bun run generate:fixtures && bun tools/build_appkit.mjs",
+    "build:tauri": "bun run generate:fixtures && bun tools/build_tauri.mjs",
+    "build:iced": "bun run generate:fixtures && cargo build --manifest-path iced-bench/Cargo.toml --release && bun tools/bundle_iced.mjs",
+    "build:wails": "bun run generate:fixtures && bun tools/build_wails.mjs",
+    "build:all": "bun run build:appkit && bun run build:tauri && bun run build:iced && bun run build:wails",
+    "summarize": "bun tools/summarize_metrics.mjs",
+    "archive:logs": "bun tools/archive_metrics.mjs",
+    "rss": "bun tools/rss_snapshot.mjs"
+  },
+  "devDependencies": {
+    "@tauri-apps/cli": "2.11.2",
+    "@types/bun": "latest",
+    "typescript": "latest",
+    "vite": "latest"
+  },
+  "dependencies": {
+    "@tauri-apps/api": "latest",
+    "@tauri-apps/plugin-global-shortcut": "2.3.2"
+  }
+}
