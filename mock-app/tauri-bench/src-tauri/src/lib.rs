@@ -116,6 +116,7 @@ struct AppState {
     projects: Mutex<Vec<Project>>,
     shortcut_string: Mutex<String>,
     logger: BenchLogger,
+    palette_visible: Mutex<bool>,
 }
 
 // MARK: - Shortcut format conversion
@@ -436,25 +437,23 @@ fn is_executable_file(path: &Path) -> bool {
 }
 
 fn show_palette<R: Runtime>(app: &AppHandle<R>, source: &str) {
-    // Toggle: hide only when the palette is already frontmost.
-    // If it's visible but buried behind other windows, show+focus instead.
-    if let Some(window) = app.get_webview_window("main") {
-        let visible = window.is_visible().unwrap_or(false);
-        let focused = window.is_focused().unwrap_or(false);
-        if visible && focused {
+    let state = app.state::<AppState>();
+    let mut palette_visible = state.palette_visible.lock().unwrap();
+
+    // Toggle: if already visible, hide and return
+    if *palette_visible {
+        if let Some(window) = app.get_webview_window("main") {
             let _ = window.hide();
-            return;
         }
-        // If visible but not focused, bring to front below
-        if !visible {
-            let _ = window.center();
-        }
-        let _ = window.show();
-        let _ = window.set_focus();
+        *palette_visible = false;
+        return;
     }
 
+    // Show
+    *palette_visible = true;
+    drop(palette_visible);
+
     let cycle_id = format!("{source}-{}", now_id());
-    let state = app.state::<AppState>();
     state.logger.log(
         "hotkey_received",
         Some(&cycle_id),
@@ -462,6 +461,9 @@ fn show_palette<R: Runtime>(app: &AppHandle<R>, source: &str) {
     );
 
     if let Some(window) = app.get_webview_window("main") {
+        let _ = window.center();
+        let _ = window.show();
+        let _ = window.set_focus();
         let payload = json!({ "cycle_id": cycle_id, "source": source });
         let _ = window.eval(format!("window.__PROJECT_LAUNCHER_SHOW?.({payload});"));
     }
@@ -470,6 +472,9 @@ fn show_palette<R: Runtime>(app: &AppHandle<R>, source: &str) {
 fn close_palette<R: Runtime>(app: &AppHandle<R>) {
     if let Some(window) = app.get_webview_window("main") {
         let _ = window.hide();
+    }
+    if let Some(state) = app.try_state::<AppState>() {
+        *state.palette_visible.lock().unwrap() = false;
     }
 }
 
@@ -548,6 +553,7 @@ pub fn run() {
             projects: Mutex::new(config.projects),
             shortcut_string: Mutex::new(shortcut_str),
             logger,
+            palette_visible: Mutex::new(false),
         })
         .plugin(
             tauri_plugin_global_shortcut::Builder::new()
