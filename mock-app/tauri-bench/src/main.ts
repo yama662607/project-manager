@@ -1,5 +1,6 @@
 import "./styles.css";
 import { invoke } from "@tauri-apps/api/core";
+import { getCurrentWindow } from "@tauri-apps/api/window";
 
 type Project = {
   id: string;
@@ -352,9 +353,15 @@ search.addEventListener("compositionupdate", (event) => event.preventDefault(), 
 search.addEventListener("compositionend", (event) => event.preventDefault(), true);
 search.addEventListener("input", () => setQuery(queryValue), true);
 search.addEventListener("keydown", (event) => {
-  if (event.key === "Enter") {
+  if (event.key === "Escape") {
+    event.preventDefault();
+    void getCurrentWindow().hide();
+  } else if (event.key === "Enter") {
     event.preventDefault();
     void openSelected();
+  } else if (event.ctrlKey && !event.metaKey && !event.altKey && event.key === "m") {
+    event.preventDefault();
+    void getCurrentWindow().hide();
   } else if (event.metaKey && !event.ctrlKey && !event.altKey && (event.key === "," || event.code === "Comma")) {
     event.preventDefault();
     void invoke("open_settings_window");
@@ -378,6 +385,12 @@ search.addEventListener("keydown", (event) => {
 document.addEventListener(
   "keydown",
   (event) => {
+    if (event.key === "Escape") {
+      event.preventDefault();
+      event.stopImmediatePropagation();
+      void getCurrentWindow().hide();
+      return;
+    }
     if (event.metaKey && !event.ctrlKey && !event.altKey && (event.key === "," || event.code === "Comma")) {
       event.preventDefault();
       event.stopImmediatePropagation();
