@@ -436,11 +436,21 @@ fn is_executable_file(path: &Path) -> bool {
 }
 
 fn show_palette<R: Runtime>(app: &AppHandle<R>, source: &str) {
+    // Toggle: hide only when the palette is already frontmost.
+    // If it's visible but buried behind other windows, show+focus instead.
     if let Some(window) = app.get_webview_window("main") {
-        if window.is_visible().unwrap_or(false) {
+        let visible = window.is_visible().unwrap_or(false);
+        let focused = window.is_focused().unwrap_or(false);
+        if visible && focused {
             let _ = window.hide();
             return;
         }
+        // If visible but not focused, bring to front below
+        if !visible {
+            let _ = window.center();
+        }
+        let _ = window.show();
+        let _ = window.set_focus();
     }
 
     let cycle_id = format!("{source}-{}", now_id());
@@ -452,9 +462,6 @@ fn show_palette<R: Runtime>(app: &AppHandle<R>, source: &str) {
     );
 
     if let Some(window) = app.get_webview_window("main") {
-        let _ = window.center();
-        let _ = window.show();
-        let _ = window.set_focus();
         let payload = json!({ "cycle_id": cycle_id, "source": source });
         let _ = window.eval(format!("window.__PROJECT_LAUNCHER_SHOW?.({payload});"));
     }
