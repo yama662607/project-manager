@@ -130,7 +130,7 @@ function runSearch(query: string): { duration: number; scenario: string } {
     results = matches.slice(0, 50);
   }
 
-  selected = results.length ? Math.min(selected, results.length - 1) : 0;
+  selected = results.length ? 0 : -1;
   renderResults();
   const duration = performance.now() - start;
   footer.textContent = aliasHit
@@ -155,6 +155,7 @@ function renderResults(): void {
   ensureRows();
   for (let index = 0; index < rowEls.length; index += 1) {
     const row = rowEls[index]!;
+    row.classList.remove("selected");
     const result = results[index];
     if (!result) {
       row.hidden = true;
@@ -203,7 +204,9 @@ function ensureRows(): void {
 }
 
 function renderSelection(): void {
-  if (lastRenderedSelected >= 0) rowEls[lastRenderedSelected]?.classList.remove("selected");
+  if (lastRenderedSelected >= 0 && lastRenderedSelected !== selected) {
+    rowEls[lastRenderedSelected]?.classList.remove("selected");
+  }
   if (selected >= 0) {
     const row = rowEls[selected];
     if (row) {
@@ -225,7 +228,8 @@ function renderSelection(): void {
 
 async function openSelected(): Promise<void> {
   if (!results.length) return;
-  const project = results[selected]!.project;
+  const selectedIndex = Math.max(0, Math.min(selected, results.length - 1));
+  const project = results[selectedIndex]!.project;
   footer.textContent = `opening ${project.name}`;
   await invoke("open_project", {
     cycleId: activeCycleId,
@@ -234,7 +238,7 @@ async function openSelected(): Promise<void> {
     projectId: project.id,
     scenario: activeScenario,
     query: queryValue,
-    selectedIndex: selected
+    selectedIndex
   });
   await closePalette();
 }
