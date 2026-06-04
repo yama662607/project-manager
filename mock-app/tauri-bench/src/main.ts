@@ -27,7 +27,19 @@ type SearchResult = {
   score: number;
 };
 
+const debugSwitchProject: Project = {
+  id: "debug-switch-to-appkit",
+  name: "Switch to AppKitBench",
+  path: "/Applications/AppKitBench.app",
+  openPaths: [],
+  aliases: ["-"],
+  tags: ["debug", "switch"],
+  language: "Action",
+  lastOpenedAt: ""
+};
+
 const search = document.querySelector<HTMLInputElement>("#search")!;
+const palette = document.querySelector<HTMLElement>(".palette")!;
 const caret = document.querySelector<HTMLElement>("#caret")!;
 const resultsEl = document.querySelector<HTMLElement>("#results")!;
 const footer = document.querySelector<HTMLElement>("#footer")!;
@@ -146,14 +158,9 @@ function renderResults(): void {
     const result = results[index];
     if (!result) {
       row.hidden = true;
-      row.style.animation = "none";
       continue;
     }
     row.hidden = false;
-    row.style.animation = "none";
-    row.offsetHeight;
-    row.style.animation = "";
-    row.style.animationDelay = `${index * 12}ms`;
     row.querySelector(".name")!.textContent = result.project.name;
     const aliasesEl = row.querySelector(".aliases")!;
     aliasesEl.textContent = "";
@@ -229,6 +236,12 @@ async function openSelected(): Promise<void> {
     query: queryValue,
     selectedIndex: selected
   });
+  await closePalette();
+}
+
+async function closePalette(): Promise<void> {
+  palette.classList.remove("active");
+  await invoke("close_palette_command").catch(() => getCurrentWindow().hide());
 }
 
 function normalizeSearchInput(value: string): string {
@@ -338,6 +351,62 @@ function moveSelection(offset: number): void {
   });
 }
 
+function handleLauncherKey(event: KeyboardEvent): boolean {
+  if (event.key === "Escape") {
+    event.preventDefault();
+    event.stopImmediatePropagation();
+    void closePalette();
+    return true;
+  }
+  if (event.key === "Enter") {
+    event.preventDefault();
+    event.stopImmediatePropagation();
+    void openSelected();
+    return true;
+  }
+  if (event.ctrlKey && !event.metaKey && !event.altKey && event.code === "KeyM") {
+    event.preventDefault();
+    event.stopImmediatePropagation();
+    void closePalette();
+    return true;
+  }
+  if (event.metaKey && !event.ctrlKey && !event.altKey && (event.key === "," || event.code === "Comma")) {
+    event.preventDefault();
+    event.stopImmediatePropagation();
+    void invoke("open_settings_window");
+    return true;
+  }
+  if (event.ctrlKey && !event.metaKey && !event.altKey && event.code === "KeyN") {
+    event.preventDefault();
+    event.stopImmediatePropagation();
+    moveSelection(1);
+    return true;
+  }
+  if (event.ctrlKey && !event.metaKey && !event.altKey && event.code === "KeyP") {
+    event.preventDefault();
+    event.stopImmediatePropagation();
+    moveSelection(-1);
+    return true;
+  }
+  if (event.key === "ArrowDown") {
+    event.preventDefault();
+    event.stopImmediatePropagation();
+    moveSelection(1);
+    return true;
+  }
+  if (event.key === "ArrowUp") {
+    event.preventDefault();
+    event.stopImmediatePropagation();
+    moveSelection(-1);
+    return true;
+  }
+  if (updateQueryFromKeyboard(event)) {
+    event.stopImmediatePropagation();
+    return true;
+  }
+  return false;
+}
+
 search.readOnly = true;
 search.setAttribute("inputmode", "none");
 search.addEventListener(
@@ -353,63 +422,72 @@ search.addEventListener("compositionupdate", (event) => event.preventDefault(), 
 search.addEventListener("compositionend", (event) => event.preventDefault(), true);
 search.addEventListener("input", () => setQuery(queryValue), true);
 search.addEventListener("keydown", (event) => {
-  if (event.key === "Escape") {
-    event.preventDefault();
-    void getCurrentWindow().hide();
-  } else if (event.key === "Enter") {
-    event.preventDefault();
-    void openSelected();
-  } else if (event.ctrlKey && !event.metaKey && !event.altKey && event.key === "m") {
-    event.preventDefault();
-    void getCurrentWindow().hide();
-  } else if (event.metaKey && !event.ctrlKey && !event.altKey && (event.key === "," || event.code === "Comma")) {
-    event.preventDefault();
-    void invoke("open_settings_window");
-  } else if (event.ctrlKey && !event.metaKey && !event.altKey && event.code === "KeyN") {
-    event.preventDefault();
-    moveSelection(1);
-  } else if (event.ctrlKey && !event.metaKey && !event.altKey && event.code === "KeyP") {
-    event.preventDefault();
-    moveSelection(-1);
-  } else if (event.key === "ArrowDown") {
-    event.preventDefault();
-    moveSelection(1);
-  } else if (event.key === "ArrowUp") {
-    event.preventDefault();
-    moveSelection(-1);
-  } else if (updateQueryFromKeyboard(event)) {
-    return;
-  }
+  handleLauncherKey(event);
 });
 
 document.addEventListener(
   "keydown",
   (event) => {
-    if (event.key === "Escape") {
-      event.preventDefault();
-      event.stopImmediatePropagation();
-      void getCurrentWindow().hide();
-      return;
-    }
-    if (event.metaKey && !event.ctrlKey && !event.altKey && (event.key === "," || event.code === "Comma")) {
-      event.preventDefault();
-      event.stopImmediatePropagation();
-      void invoke("open_settings_window");
-      return;
-    }
+    handleLauncherKey(event);
   },
   true
 );
+
+window.__PROJECT_LAUNCHER_SHOW = async (payload) => {
+  activeCycleId = payload.cycle_id;
+  activeScenario = "";
+  const needsReset = queryValue.length > 0 || results.length === 0;
+  setQuery("");
+  selected = 0;
+  if (needsReset) {
+    runSearch(queryValue);
+  } else {
+    renderSelection();
+  }
+  palette.classList.add("active");
+  search.focus();
+  await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
+  await invoke("log_event", { event: "palette_rendered", cycleId: activeCycleId, fields: {} });
+};
+
+window.__PROJECT_LAUNCHER_BENCHMARK = async (payload) => {
+  activeCycleId = payload.cycle_id;
+  activeScenario = "";
+  setQuery(payload.query);
+  runSearch(queryValue);
+  palette.classList.add("active");
+  await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
+  await invoke("log_event", { event: "palette_rendered", cycleId: activeCycleId, fields: {} });
+};
+
+function rebuildIndex(projects: Project[]): void {
+  indexed = [debugSwitchProject, ...projects].map((project) => ({
+    project: { ...project, aliases: project.aliases ?? [], openPaths: project.openPaths ?? [] },
+    id: project.id.toLowerCase(),
+    name: project.name.toLowerCase(),
+    path: project.path.toLowerCase(),
+    aliases: (project.aliases ?? []).join(" ").toLowerCase(),
+    tags: project.tags.join(" ").toLowerCase()
+  }));
+  aliasMap = new Map();
+  for (const item of indexed) {
+    for (const alias of item.project.aliases ?? []) {
+      const key = alias.toLowerCase().trim();
+      if (key && !aliasMap.has(key)) aliasMap.set(key, item.project);
+    }
+  }
+}
+
+async function reloadProjects(): Promise<void> {
+  const projects = await loadProjectsWithRetry();
+  rebuildIndex(projects);
+}
 
 async function loadProjectsWithRetry(): Promise<Project[]> {
   let lastError: unknown = null;
   for (let attempt = 0; attempt < 20; attempt += 1) {
     try {
-      const response = await fetch("projects.json", { cache: "no-store" });
-      if (!response.ok) {
-        throw new Error(`projects.json ${response.status}`);
-      }
-      return (await response.json()) as Project[];
+      return (await invoke("load_projects")) as Project[];
     } catch (error) {
       lastError = error;
       await new Promise((resolve) => setTimeout(resolve, 20));
@@ -425,24 +503,17 @@ async function loadProjectsWithRetry(): Promise<Project[]> {
   return [];
 }
 
-const projects = await loadProjectsWithRetry();
-indexed = projects.map((project) => ({
-  project: { ...project, aliases: project.aliases ?? [] },
-  id: project.id.toLowerCase(),
-  name: project.name.toLowerCase(),
-  path: project.path.toLowerCase(),
-  aliases: (project.aliases ?? []).join(" ").toLowerCase(),
-  tags: project.tags.join(" ").toLowerCase()
-}));
-aliasMap = new Map();
-for (const item of indexed) {
-  for (const alias of item.project.aliases ?? []) {
-    const key = alias.toLowerCase().trim();
-    if (key) aliasMap.set(key, item.project);
-  }
-}
+window.__PROJECT_LAUNCHER_RELOAD = async () => {
+  await reloadProjects();
+  setQuery("");
+  selected = 0;
+  runSearch("");
+};
+
+await reloadProjects();
 runSearch("");
 search.focus();
+palette.classList.add("active");
 await invoke("log_event", {
   event: "app_ready",
   cycleId: null,

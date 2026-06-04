@@ -137,17 +137,7 @@ body {
   border-radius: 6px;
   color: var(--text-primary);
   font-size: 13px;
-  opacity: 0;
-  transform: translateY(4px);
-  animation: row-enter 0.25s ease forwards;
   cursor: default;
-}
-
-@keyframes row-enter {
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
 }
 
 .row.selected {

@@ -9,13 +9,31 @@ use std::{
     sync::Mutex,
     time::{Instant, SystemTime},
 };
-use tauri::{AppHandle, Manager};
+use tauri::{AppHandle, Manager, Runtime};
+use tauri_plugin_global_shortcut::{Code, GlobalShortcutExt, Modifiers, ShortcutState};
 
 // MARK: - Config
 
 #[derive(Clone, Serialize, Deserialize)]
 struct AppConfig {
     projects: Vec<Project>,
+    #[serde(default)]
+    shortcut: ShortcutConfig,
+}
+
+#[derive(Clone, Serialize, Deserialize)]
+struct ShortcutConfig {
+    modifiers: Vec<String>,
+    key: String,
+}
+
+impl Default for ShortcutConfig {
+    fn default() -> Self {
+        Self {
+            modifiers: vec!["control".into()],
+            key: "m".into(),
+        }
+    }
 }
 
 // MARK: - Project
@@ -108,6 +126,7 @@ fn load_config() -> AppConfig {
     }
     AppConfig {
         projects: load_fixture(),
+        shortcut: ShortcutConfig::default(),
     }
 }
 
@@ -133,18 +152,25 @@ fn load_projects(state: tauri::State<'_, AppState>) -> Vec<Project> {
 #[tauri::command]
 fn get_config(state: tauri::State<'_, AppState>) -> Value {
     let projects = state.projects.lock().unwrap();
-    json!({ "projects": *projects })
+    json!({ "projects": *projects, "shortcut": ShortcutConfig::default() })
 }
 
 #[tauri::command]
 fn save_config(app: AppHandle, config: Value) -> Result<String, String> {
-    let parsed: AppConfig =
+    let has_shortcut = config.get("shortcut").is_some();
+    let mut parsed: AppConfig =
         serde_json::from_value(config).map_err(|e| format!("invalid config: {e}"))?;
+    if !has_shortcut {
+        parsed.shortcut = load_config().shortcut;
+    }
 
     save_config_file(&parsed)?;
 
     let state = app.state::<AppState>();
-    *state.projects.lock().unwrap() = parsed.projects;
+    *state.projects.lock().unwrap() = parsed.projects.clone();
+    if let Some(window) = app.get_webview_window("main") {
+        let _ = window.eval("window.__PROJECT_LAUNCHER_RELOAD?.();");
+    }
 
     Ok("saved".into())
 }
@@ -187,6 +213,7 @@ fn log_metric(
 
 #[tauri::command]
 fn open_project(
+    app: AppHandle,
     state: tauri::State<'_, AppState>,
     cycle_id: Option<String>,
     path: String,
@@ -199,6 +226,33 @@ fn open_project(
     state
         .logger
         .log("open_requested", cycle_id.as_deref(), json!({}));
+    if project_id == "debug-switch-to-appkit" {
+        state.logger.log(
+            "debug_switch_requested",
+            cycle_id.as_deref(),
+            json!({ "target": "AppKitBench", "query": query.unwrap_or_default() }),
+        );
+        let result = Command::new("/usr/bin/open")
+            .args(["-a", "/Applications/AppKitBench.app"])
+            .stdin(Stdio::null())
+            .stdout(Stdio::null())
+            .stderr(Stdio::null())
+            .spawn();
+        match result {
+            Ok(_) => state.logger.log(
+                "debug_switch_dispatched",
+                cycle_id.as_deref(),
+                json!({ "target": "AppKitBench" }),
+            ),
+            Err(error) => state.logger.log(
+                "debug_switch_failed",
+                cycle_id.as_deref(),
+                json!({ "target": "AppKitBench", "error": error.to_string() }),
+            ),
+        }
+        app.exit(0);
+        return;
+    }
     let paths = open_paths
         .filter(|paths| !paths.is_empty())
         .or_else(|| {
@@ -227,6 +281,11 @@ fn open_project(
             "selected_index": selected_index.unwrap_or_default()
         }),
     );
+}
+
+#[tauri::command]
+fn close_palette_command(app: AppHandle) {
+    close_palette(&app);
 }
 
 #[tauri::command]
@@ -310,6 +369,41 @@ fn is_executable_file(path: &Path) -> bool {
         .unwrap_or(false)
 }
 
+fn show_palette<R: Runtime>(app: &AppHandle<R>, source: &str) {
+    if let Some(window) = app.get_webview_window("main") {
+        if window.is_visible().unwrap_or(false) {
+            let _ = window.hide();
+            return;
+        }
+
+        let cycle_id = format!("{source}-{}", now_id());
+        let state = app.state::<AppState>();
+        state.logger.log(
+            "hotkey_received",
+            Some(&cycle_id),
+            json!({ "source": source }),
+        );
+        let _ = window.center();
+        let _ = window.show();
+        let _ = window.set_focus();
+        let payload = json!({ "cycle_id": cycle_id, "source": source });
+        let _ = window.eval(format!("window.__PROJECT_LAUNCHER_SHOW?.({payload});"));
+    }
+}
+
+fn close_palette<R: Runtime>(app: &AppHandle<R>) {
+    if let Some(window) = app.get_webview_window("main") {
+        let _ = window.hide();
+    }
+}
+
+fn now_id() -> String {
+    SystemTime::now()
+        .duration_since(SystemTime::UNIX_EPOCH)
+        .map(|duration| duration.as_nanos().to_string())
+        .unwrap_or_else(|_| "0".into())
+}
+
 fn load_fixture() -> Vec<Project> {
     let mut candidates = Vec::new();
     if let Ok(exe) = std::env::current_exe() {
@@ -348,6 +442,17 @@ pub fn run() {
             projects: Mutex::new(config.projects),
             logger,
         })
+        .plugin(
+            tauri_plugin_global_shortcut::Builder::new()
+                .with_handler(|app, shortcut, event| {
+                    if event.state() == ShortcutState::Pressed
+                        && shortcut.matches(Modifiers::CONTROL, Code::KeyM)
+                    {
+                        show_palette(app, "hotkey");
+                    }
+                })
+                .build(),
+        )
         .invoke_handler(tauri::generate_handler![
             load_projects,
             get_config,
@@ -355,11 +460,18 @@ pub fn run() {
             log_event,
             log_metric,
             open_project,
+            close_palette_command,
             open_settings_window,
             close_settings_window,
             browse_folder
         ])
+        .on_window_event(|window, event| {
+            if window.label() == "main" && matches!(event, tauri::WindowEvent::Focused(false)) {
+                let _ = window.hide();
+            }
+        })
         .setup(|app| {
+            app.global_shortcut().register("Control+KeyM")?;
             if let Some(window) = app.get_webview_window("main") {
                 let _ = window.center();
             }

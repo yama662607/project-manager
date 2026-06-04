@@ -18,6 +18,21 @@ struct AppConfig: Codable {
   let projects: [Project]
   let shortcut: ShortcutConfig
 
+  enum CodingKeys: String, CodingKey {
+    case projects, shortcut
+  }
+
+  init(projects: [Project], shortcut: ShortcutConfig) {
+    self.projects = projects
+    self.shortcut = shortcut
+  }
+
+  init(from decoder: Decoder) throws {
+    let c = try decoder.container(keyedBy: CodingKeys.self)
+    projects = try c.decode([Project].self, forKey: .projects)
+    shortcut = try c.decodeIfPresent(ShortcutConfig.self, forKey: .shortcut) ?? .default
+  }
+
   static func load() -> AppConfig {
     let home = FileManager.default.homeDirectoryForCurrentUser
     let configURL = home.appendingPathComponent(".project-manager.json")
@@ -37,6 +52,9 @@ struct AppConfig: Codable {
     encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
     let data = try encoder.encode(self)
     try data.write(to: tmpURL, options: .atomic)
+    if FileManager.default.fileExists(atPath: configURL.path) {
+      try FileManager.default.removeItem(at: configURL)
+    }
     try FileManager.default.moveItem(at: tmpURL, to: configURL)
   }
 }

@@ -17,11 +17,12 @@
         "title": "TauriBench",
         "width": 760,
         "height": 520,
-        "visible": true,
+        "visible": false,
         "resizable": false,
         "decorations": false,
         "transparent": true,
-        "alwaysOnTop": false,
+        "alwaysOnTop": true,
+        "shadow": false,
         "center": true
       }
     ],
