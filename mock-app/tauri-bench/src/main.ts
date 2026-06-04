@@ -275,6 +275,7 @@ function asciiFromCode(event: KeyboardEvent): string {
   if (event.metaKey || event.ctrlKey || event.altKey) return "";
   if (/^Key[A-Z]$/.test(event.code)) return event.code.slice(3).toLowerCase();
   if (/^Digit[0-9]$/.test(event.code)) return event.code.slice(5);
+  if (event.code === "Minus") return "-";
   if (event.code === "Space") return " ";
   return "";
 }

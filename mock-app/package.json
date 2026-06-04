@@ -14,6 +14,7 @@
     "build:iced": "bun run generate:fixtures && cargo build --manifest-path iced-bench/Cargo.toml --release && bun tools/bundle_iced.mjs",
     "build:wails": "bun run generate:fixtures && bun tools/build_wails.mjs",
     "build:all": "bun run build:appkit && bun run build:tauri && bun run build:iced && bun run build:wails",
+    "test:tauri-keyboard": "bun tools/test_tauri_keyboard.mjs",
     "summarize": "bun tools/summarize_metrics.mjs",
     "archive:logs": "bun tools/archive_metrics.mjs",
     "rss": "bun tools/rss_snapshot.mjs"
@@ -21,6 +22,7 @@
   "devDependencies": {
     "@tauri-apps/cli": "2.11.2",
     "@types/bun": "latest",
+    "playwright": "^1.60.0",
     "typescript": "latest",
     "vite": "latest"
   },

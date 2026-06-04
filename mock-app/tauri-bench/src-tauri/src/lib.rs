@@ -442,6 +442,9 @@ pub fn run() {
             projects: Mutex::new(config.projects),
             logger,
         })
+        .plugin(tauri_plugin_single_instance::init(|app, _args, _cwd| {
+            show_palette(app, "single-instance");
+        }))
         .plugin(
             tauri_plugin_global_shortcut::Builder::new()
                 .with_handler(|app, shortcut, event| {
