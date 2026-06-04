@@ -27,7 +27,6 @@ type SearchResult = {
 };
 
 const search = document.querySelector<HTMLInputElement>("#search")!;
-const palette = document.querySelector<HTMLElement>(".palette")!;
 const caret = document.querySelector<HTMLElement>("#caret")!;
 const resultsEl = document.querySelector<HTMLElement>("#results")!;
 const footer = document.querySelector<HTMLElement>("#footer")!;
@@ -44,22 +43,7 @@ let queryValue = "";
 let activeScenario = "";
 const rowEls: HTMLElement[] = [];
 let lastRenderedSelected = -1;
-const debugSwitchProject: Project = {
-  id: "debug-switch-to-appkit",
-  name: "Switch to AppKitBench",
-  path: "/Applications/AppKitBench.app",
-  aliases: ["-"],
-  tags: ["debug", "switch"],
-  language: "Action",
-  lastOpenedAt: "2026-06-03T00:00:00Z"
-};
 
-declare global {
-  interface Window {
-    __PROJECT_LAUNCHER_SHOW?: (payload: { cycle_id: string; source: string }) => void;
-    __PROJECT_LAUNCHER_BENCHMARK?: (payload: { cycle_id: string; query: string }) => void;
-  }
-}
 
 function fuzzyContains(token: string, candidate: string): boolean {
   let index = 0;
@@ -244,12 +228,6 @@ async function openSelected(): Promise<void> {
     query: queryValue,
     selectedIndex: selected
   });
-  await closePalette();
-}
-
-async function closePalette(): Promise<void> {
-  palette.classList.remove("active");
-  await invoke("close_palette_command");
 }
 
 function normalizeSearchInput(value: string): string {
@@ -374,10 +352,7 @@ search.addEventListener("compositionupdate", (event) => event.preventDefault(), 
 search.addEventListener("compositionend", (event) => event.preventDefault(), true);
 search.addEventListener("input", () => setQuery(queryValue), true);
 search.addEventListener("keydown", (event) => {
-  if (event.key === "Escape") {
-    event.preventDefault();
-    void closePalette();
-  } else if (event.key === "Enter") {
+  if (event.key === "Enter") {
     event.preventDefault();
     void openSelected();
   } else if (event.metaKey && !event.ctrlKey && !event.altKey && (event.key === "," || event.code === "Comma")) {
@@ -403,12 +378,6 @@ search.addEventListener("keydown", (event) => {
 document.addEventListener(
   "keydown",
   (event) => {
-    if (event.key === "Escape") {
-      event.preventDefault();
-      event.stopImmediatePropagation();
-      void closePalette();
-      return;
-    }
     if (event.metaKey && !event.ctrlKey && !event.altKey && (event.key === "," || event.code === "Comma")) {
       event.preventDefault();
       event.stopImmediatePropagation();
@@ -418,28 +387,6 @@ document.addEventListener(
   },
   true
 );
-
-window.__PROJECT_LAUNCHER_SHOW = async (payload) => {
-  activeCycleId = payload.cycle_id;
-  activeScenario = "";
-  setQuery("");
-  selected = 0;
-  runSearch(queryValue);
-  palette.classList.add("active");
-  search.focus();
-  await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
-  await invoke("log_event", { event: "palette_rendered", cycleId: activeCycleId, fields: {} });
-};
-
-window.__PROJECT_LAUNCHER_BENCHMARK = async (payload) => {
-  activeCycleId = payload.cycle_id;
-  activeScenario = "";
-  setQuery(payload.query);
-  runSearch(queryValue);
-  palette.classList.add("active");
-  await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
-  await invoke("log_event", { event: "palette_rendered", cycleId: activeCycleId, fields: {} });
-};
 
 async function loadProjectsWithRetry(): Promise<Project[]> {
   let lastError: unknown = null;
@@ -465,7 +412,7 @@ async function loadProjectsWithRetry(): Promise<Project[]> {
   return [];
 }
 
-const projects = [debugSwitchProject, ...(await loadProjectsWithRetry())];
+const projects = await loadProjectsWithRetry();
 indexed = projects.map((project) => ({
   project: { ...project, aliases: project.aliases ?? [] },
   id: project.id.toLowerCase(),

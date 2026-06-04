@@ -10,14 +10,13 @@
     "frontendDist": "../dist-web"
   },
   "app": {
-    "macOSPrivateApi": true,
     "windows": [
       {
         "label": "main",
         "title": "TauriBench",
         "width": 760,
         "height": 520,
-        "visible": false,
+        "visible": true,
         "resizable": false,
         "decorations": true,
         "transparent": false,

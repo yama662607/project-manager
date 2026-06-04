@@ -12,18 +12,11 @@ type Project = {
   lastOpenedAt?: string;
 };
 
-type ShortcutConfig = {
-  modifiers: string[];
-  key: string;
-};
-
 type AppConfig = {
   projects: Project[];
-  shortcut: ShortcutConfig;
 };
 
 let projects: Project[] = [];
-let shortcut: ShortcutConfig = { modifiers: ["control"], key: "m" };
 let selectedIndex = 0;
 
 const projectList = document.querySelector<HTMLUListElement>("#project-list")!;
@@ -36,7 +29,6 @@ const fieldOpenPaths = document.querySelector<HTMLInputElement>("#field-openpath
 const fieldAliases = document.querySelector<HTMLInputElement>("#field-aliases")!;
 const fieldTags = document.querySelector<HTMLInputElement>("#field-tags")!;
 const fieldLanguage = document.querySelector<HTMLInputElement>("#field-language")!;
-const shortcutInput = document.querySelector<HTMLInputElement>("#shortcut-input")!;
 const saveBtn = document.querySelector<HTMLButtonElement>("#save")!;
 const cancelBtn = document.querySelector<HTMLButtonElement>("#cancel")!;
 const statusEl = document.querySelector<HTMLSpanElement>("#status")!;
@@ -55,62 +47,7 @@ document.querySelectorAll<HTMLButtonElement>(".tab").forEach((tab) => {
 async function loadConfig() {
   const config = (await invoke("get_config")) as AppConfig;
   projects = config.projects;
-  shortcut = config.shortcut;
   renderProjectList();
-  updateShortcutDisplay();
-}
-
-// Shortcut recording
-function readableShortcut(mods: string[], key: string): string {
-  const displayMods = mods.map((m) => {
-    switch (m) {
-      case "control": return "⌃";
-      case "option": return "⌥";
-      case "shift": return "⇧";
-      case "command": return "⌘";
-      default: return m;
-    }
-  });
-  const displayKey = key === "space" ? "Space" : key.toUpperCase();
-  return displayMods.join("") + displayKey;
-}
-
-function updateShortcutDisplay() {
-  shortcutInput.value = readableShortcut(shortcut.modifiers, shortcut.key);
-}
-
-shortcutInput.addEventListener("focus", () => {
-  shortcutInput.value = "Press shortcut...";
-});
-
-shortcutInput.addEventListener("keydown", (e) => {
-  e.preventDefault();
-  const mods: string[] = [];
-  if (e.ctrlKey) mods.push("control");
-  if (e.altKey) mods.push("option");
-  if (e.shiftKey) mods.push("shift");
-  if (e.metaKey) mods.push("command");
-
-  const key = keyFromEvent(e);
-  if (!key || mods.length === 0) {
-    shortcutInput.value = "Press shortcut...";
-    return;
-  }
-
-  shortcut = { modifiers: mods, key };
-  shortcutInput.value = readableShortcut(mods, key);
-  shortcutInput.blur();
-});
-
-shortcutInput.addEventListener("blur", () => {
-  updateShortcutDisplay();
-});
-
-function keyFromEvent(e: KeyboardEvent): string | null {
-  if (/^Key[A-Z]$/.test(e.code)) return e.code.slice(3).toLowerCase();
-  if (/^Digit[0-9]$/.test(e.code)) return e.code.slice(5);
-  if (e.code === "Space") return "space";
-  return null;
 }
 
 // Project list rendering
@@ -242,7 +179,6 @@ saveBtn.addEventListener("click", async () => {
           language,
           lastOpenedAt: "",
         })),
-        shortcut,
       },
     });
     await invoke("close_settings_window");
