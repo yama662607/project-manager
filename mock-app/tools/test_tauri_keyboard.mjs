@@ -54,19 +54,28 @@ await page.addInitScript(() => {
     ["code-projects-kulms-ta-extension", "kulms-ta-extension"]
   ];
   const debug = ["debug-switch-to-appkit", "Switch to AppKitBench"];
-  const state = {
-    visible: false,
-    query: "",
-    selectedIndex: 0,
-    totalMatches: 5,
-    results: [debug, ...kanResults].map(([id, name]) => ({
+  const defaultResults = [
+    debug,
+    ...Array.from({ length: 20 }, (_, index) => [`default-${index}`, `Default Project ${index}`])
+  ];
+
+  function toItem([id, name]) {
+    return {
       id,
       name,
       path: id === "debug-switch-to-appkit" ? "/Applications/AppKitBench.app" : `/tmp/${name}`,
       aliases: id === "debug-switch-to-appkit" ? ["-"] : [name.toLowerCase()],
       language: id === "debug-switch-to-appkit" ? "Action" : "Project",
       isDebug: id === "debug-switch-to-appkit"
-    })),
+    };
+  }
+
+  const state = {
+    visible: false,
+    query: "",
+    selectedIndex: 0,
+    totalMatches: defaultResults.length,
+    results: defaultResults.map(toItem),
     footer: "ready",
     cycleId: null
   };
@@ -93,14 +102,7 @@ await page.addInitScript(() => {
       }));
       state.totalMatches = state.results.length;
     } else {
-      state.results = [debug, ...kanResults].map(([id, name]) => ({
-        id,
-        name,
-        path: id === "debug-switch-to-appkit" ? "/Applications/AppKitBench.app" : `/tmp/${name}`,
-        aliases: id === "debug-switch-to-appkit" ? ["-"] : [name.toLowerCase()],
-        language: id === "debug-switch-to-appkit" ? "Action" : "Project",
-        isDebug: id === "debug-switch-to-appkit"
-      }));
+      state.results = defaultResults.map(toItem);
       state.totalMatches = state.results.length;
     }
     state.selectedIndex = state.results.length ? 0 : -1;
@@ -179,6 +181,33 @@ async function snapshot(label) {
 await page.keyboard.press("Control+M");
 let state = await snapshot("after toggle");
 check(state.visible === "true", "Control+M should show the palette", state);
+
+for (let index = 0; index < 8; index += 1) {
+  await page.keyboard.press("ArrowDown");
+}
+state = await snapshot("after eight arrows");
+let scrollTop = await page.$eval("#results", (element) => element.scrollTop);
+check(state.selected === 8, "ArrowDown should move to visible index 8", state);
+check(scrollTop === 0, "Selecting the last fully visible row should not scroll early", { scrollTop, state });
+
+await page.keyboard.press("ArrowDown");
+const scrollGeometry = await page.evaluate(() => {
+  const results = document.querySelector("#results");
+  const row = document.querySelectorAll(".row:not([hidden])")[9];
+  const resultsRect = results.getBoundingClientRect();
+  const rowRect = row.getBoundingClientRect();
+  return {
+    scrollTop: results.scrollTop,
+    rowBottom: rowRect.bottom,
+    resultsBottom: resultsRect.bottom
+  };
+});
+check(scrollGeometry.scrollTop > 0, "Selecting the first clipped row should scroll", scrollGeometry);
+check(
+  scrollGeometry.rowBottom <= scrollGeometry.resultsBottom + 1,
+  "Scrolled selected row should be fully visible",
+  scrollGeometry
+);
 
 await page.keyboard.type("kan");
 state = await snapshot("after kan");

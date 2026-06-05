@@ -37,6 +37,8 @@ let currentState: ViewState | null = null;
 let keyQueue = Promise.resolve();
 let lastRenderedCycleId: string | null = null;
 let syncQueue = Promise.resolve();
+const scrollEpsilon = 1;
+const scrollGutter = 2;
 
 function ensureRows(): void {
   while (rows.length < 50) {
@@ -89,12 +91,13 @@ function applyState(state: ViewState): void {
 
   const selectedRow = rows[state.selectedIndex];
   if (selectedRow && !selectedRow.hidden) {
-    const top = resultsEl.scrollTop;
-    const bottom = top + resultsEl.clientHeight;
-    const rowTop = selectedRow.offsetTop;
-    const rowBottom = rowTop + selectedRow.offsetHeight;
-    if (rowTop < top) resultsEl.scrollTop = rowTop - 4;
-    if (rowBottom > bottom) resultsEl.scrollTop = rowBottom - resultsEl.clientHeight + 4;
+    const rowRect = selectedRow.getBoundingClientRect();
+    const resultsRect = resultsEl.getBoundingClientRect();
+    if (rowRect.top < resultsRect.top - scrollEpsilon) {
+      resultsEl.scrollTop -= resultsRect.top - rowRect.top + scrollGutter;
+    } else if (rowRect.bottom > resultsRect.bottom + scrollEpsilon) {
+      resultsEl.scrollTop += rowRect.bottom - resultsRect.bottom + scrollGutter;
+    }
   }
 
   if (state.visible) {

@@ -57,6 +57,7 @@ body {
   background: var(--panel);
   font-size: 21px;
   font-weight: 420;
+  overflow: hidden;
 }
 
 .key-catcher {
@@ -70,22 +71,34 @@ body {
   background: transparent;
   color: transparent;
   caret-color: transparent;
+  z-index: 2;
 }
 
 .query {
+  position: relative;
+  z-index: 1;
   white-space: pre;
 }
 
 .placeholder {
+  position: absolute;
+  left: 16px;
+  right: 16px;
+  z-index: 0;
   color: var(--dim);
   pointer-events: none;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
 }
 
-.query:not(:empty) + .placeholder {
+.query:not(:empty) ~ .placeholder {
   display: none;
 }
 
 .caret {
+  position: relative;
+  z-index: 1;
   width: 2px;
   height: 24px;
   margin-left: 2px;
