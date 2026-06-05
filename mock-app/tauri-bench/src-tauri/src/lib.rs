@@ -151,6 +151,13 @@ fn debug_switch_project() -> Project {
     }
 }
 
+fn debug_switch_enabled() -> bool {
+    std::env::var("PROJECT_LAUNCHER_DEBUG_SWITCH")
+        .ok()
+        .as_deref()
+        == Some("1")
+}
+
 impl BenchLogger {
     fn new() -> Self {
         let dir = dirs::home_dir()
@@ -226,9 +233,13 @@ impl LauncherData {
 }
 
 fn build_index(projects: &[Project]) -> (Vec<IndexedProject>, HashMap<String, usize>) {
-    let all_projects = std::iter::once(debug_switch_project())
-        .chain(projects.iter().cloned())
-        .collect::<Vec<_>>();
+    let all_projects = if debug_switch_enabled() {
+        std::iter::once(debug_switch_project())
+            .chain(projects.iter().cloned())
+            .collect::<Vec<_>>()
+    } else {
+        projects.to_vec()
+    };
     let indexed = all_projects
         .into_iter()
         .map(|project| {

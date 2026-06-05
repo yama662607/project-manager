@@ -53,20 +53,16 @@ await page.addInitScript(() => {
     ["code-projects-kanade-reference", "kanade-reference"],
     ["code-projects-kulms-ta-extension", "kulms-ta-extension"]
   ];
-  const debug = ["debug-switch-to-appkit", "Switch to AppKitBench"];
-  const defaultResults = [
-    debug,
-    ...Array.from({ length: 20 }, (_, index) => [`default-${index}`, `Default Project ${index}`])
-  ];
+  const defaultResults = Array.from({ length: 20 }, (_, index) => [`default-${index}`, `Default Project ${index}`]);
 
   function toItem([id, name]) {
     return {
       id,
       name,
-      path: id === "debug-switch-to-appkit" ? "/Applications/AppKitBench.app" : `/tmp/${name}`,
-      aliases: id === "debug-switch-to-appkit" ? ["-"] : [name.toLowerCase()],
-      language: id === "debug-switch-to-appkit" ? "Action" : "Project",
-      isDebug: id === "debug-switch-to-appkit"
+      path: `/tmp/${name}`,
+      aliases: [name.toLowerCase()],
+      language: "Project",
+      isDebug: false
     };
   }
 
@@ -82,15 +78,8 @@ await page.addInitScript(() => {
 
   function applySearch() {
     if (state.query === "-") {
-      state.results = [{
-        id: debug[0],
-        name: debug[1],
-        path: "/Applications/AppKitBench.app",
-        aliases: ["-"],
-        language: "Action",
-        isDebug: true
-      }];
-      state.totalMatches = 1;
+      state.results = [];
+      state.totalMatches = 0;
     } else if (state.query === "kan") {
       state.results = kanResults.map(([id, name]) => ({
         id,
@@ -142,11 +131,13 @@ await page.addInitScript(() => {
         if (key === "previous") state.selectedIndex = Math.max(state.selectedIndex - 1, 0);
         if (key === "enter") {
           const item = state.results[state.selectedIndex];
-          window.__IPC_CALLS__.push({
-            cmd: "open_dispatched_mock",
-            args: { projectId: item.id, query: state.query, selectedIndex: state.selectedIndex }
-          });
-          state.visible = false;
+          if (item) {
+            window.__IPC_CALLS__.push({
+              cmd: "open_dispatched_mock",
+              args: { projectId: item.id, query: state.query, selectedIndex: state.selectedIndex }
+            });
+            state.visible = false;
+          }
         }
         return { ...state };
       }
@@ -241,11 +232,11 @@ await page.keyboard.press("Control+M");
 await page.keyboard.type("-");
 state = await snapshot("after dash");
 check(state.query === "-", "Minus should be accepted as physical input", state);
-check(state.selectedName === "Switch to AppKitBench", "dash alias should select debug switch", state);
+check(state.selected === -1, "Minus should not select a debug switch in normal mode", state);
 await page.keyboard.press("Enter");
 calls = await page.evaluate(() => window.__IPC_CALLS__);
 dispatched = calls.filter((call) => call.cmd === "open_dispatched_mock").at(-1);
-check(dispatched?.args?.projectId === "debug-switch-to-appkit", "dash Enter should dispatch debug switch", dispatched);
+check(dispatched?.args?.projectId !== "debug-switch-to-appkit", "dash Enter should not dispatch debug switch", dispatched);
 
 await browser.close();
 if (server) server.kill();

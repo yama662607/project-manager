@@ -162,8 +162,9 @@ final class SearchEngine {
   private let aliasLookup: [String: IndexedProject]
 
   init(projects: [Project]) {
-    let allProjects =
-      [
+    let debugProjects =
+      ProcessInfo.processInfo.environment["PROJECT_LAUNCHER_DEBUG_SWITCH"] == "1"
+      ? [
         Project(
           id: "debug-switch-to-tauri",
           name: "Switch to TauriBench",
@@ -171,7 +172,9 @@ final class SearchEngine {
           aliases: ["-"],
           tags: ["debug", "switch"],
           language: "Action")
-      ] + projects
+      ]
+      : []
+    let allProjects = debugProjects + projects
     indexed = allProjects.map {
       let aliases = $0.aliases.map { $0.lowercased() }
       return IndexedProject(
