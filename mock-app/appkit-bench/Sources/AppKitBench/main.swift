@@ -5,6 +5,18 @@ import Foundation
 private let appName = "appkit"
 private let cachedZedCommandURL = resolveZedCommand()
 
+private enum PaletteColor {
+  static let background = NSColor(calibratedRed: 0.082, green: 0.09, blue: 0.106, alpha: 1)
+  static let panel = NSColor(calibratedRed: 0.114, green: 0.125, blue: 0.149, alpha: 1)
+  static let border = NSColor.white.withAlphaComponent(0.14)
+  static let text = NSColor.white.withAlphaComponent(0.92)
+  static let muted = NSColor.white.withAlphaComponent(0.52)
+  static let dim = NSColor.white.withAlphaComponent(0.34)
+  static let accent = NSColor(calibratedRed: 0.843, green: 0.659, blue: 0.302, alpha: 1)
+  static let selected = NSColor(calibratedRed: 0.843, green: 0.659, blue: 0.302, alpha: 0.24)
+  static let badge = NSColor.white.withAlphaComponent(0.08)
+}
+
 // MARK: - Config
 
 struct ShortcutConfig: Codable {
@@ -248,14 +260,19 @@ final class SearchEngine {
   }
 
   private func scoreToken(_ token: String, item: IndexedProject) -> Int {
-    if item.id == token { return 1400 }
     if item.aliasList.contains(token) { return 5000 }
-    if token.count >= 3, item.id.contains(token) { return 1000 }
+    if item.id == token { return 1400 }
     if item.name.hasPrefix(token) { return 1200 - min(item.name.count, 300) }
     if token.count == 1, wordHasPrefix(token, item.name) { return 600 }
+    if token.count >= 3, item.aliases.contains(token) { return 1100 }
+    if token.count >= 2, wordHasPrefix(token, item.name) { return 1050 - min(item.name.count, 280) }
+    if token.count >= 3, item.id.contains(token) { return 1000 }
     if token.count >= 3, item.name.contains(token) { return 900 - min(item.name.count, 250) }
-    if token.count >= 3, item.aliases.contains(token) { return 800 }
     if token.count >= 3, item.tags.contains(token) { return 700 }
+    if token.count >= 2, item.aliases.contains(token) { return 680 }
+    if token.count >= 2, item.id.contains(token) { return 660 }
+    if token.count >= 2, item.name.contains(token) { return 620 - min(item.name.count, 250) }
+    if token.count >= 2, item.tags.contains(token) { return 580 }
     if token.count >= 3, item.path.contains(token) { return 450 }
     if token.contains(where: \.isNumber) { return 0 }
     if token.count >= 3, fuzzyContains(token, item.name) { return 250 }
@@ -288,8 +305,42 @@ final class SearchField: NSTextField {
   var onAppendText: ((String) -> Void)?
   var onDeleteBackward: (() -> Void)?
   var onMoveSelection: ((Int) -> Void)?
+  private let caretLayer = CALayer()
 
   override var acceptsFirstResponder: Bool { true }
+
+  override var stringValue: String {
+    didSet {
+      needsLayout = true
+    }
+  }
+
+  override init(frame frameRect: NSRect) {
+    super.init(frame: frameRect)
+    configureAppearance()
+  }
+
+  required init?(coder: NSCoder) {
+    super.init(coder: coder)
+    configureAppearance()
+  }
+
+  override func layout() {
+    super.layout()
+    updateCaretFrame()
+  }
+
+  override func becomeFirstResponder() -> Bool {
+    let result = super.becomeFirstResponder()
+    updateCaretFrame()
+    return result
+  }
+
+  override func resignFirstResponder() -> Bool {
+    let result = super.resignFirstResponder()
+    updateCaretFrame()
+    return result
+  }
 
   override func keyDown(with event: NSEvent) {
     if event.keyCode == 36 {
@@ -328,6 +379,159 @@ final class SearchField: NSTextField {
       return
     }
     super.keyDown(with: event)
+  }
+
+  func refreshCaret() {
+    updateCaretFrame()
+  }
+
+  private func configureAppearance() {
+    wantsLayer = true
+    isBezeled = false
+    drawsBackground = false
+    focusRingType = .none
+    textColor = PaletteColor.text
+    placeholderAttributedString = NSAttributedString(
+      string: "Search projects",
+      attributes: [
+        .foregroundColor: PaletteColor.dim,
+        .font: NSFont.systemFont(ofSize: 21, weight: .regular),
+      ])
+    layer?.backgroundColor = PaletteColor.panel.cgColor
+    layer?.borderColor = PaletteColor.border.cgColor
+    layer?.borderWidth = 1
+    layer?.cornerRadius = 8
+    layer?.masksToBounds = true
+    caretLayer.backgroundColor = PaletteColor.accent.cgColor
+    caretLayer.cornerRadius = 1
+    layer?.addSublayer(caretLayer)
+
+    let blink = CABasicAnimation(keyPath: "opacity")
+    blink.fromValue = 1
+    blink.toValue = 0
+    blink.duration = 0.5
+    blink.autoreverses = true
+    blink.repeatCount = .infinity
+    blink.timingFunction = CAMediaTimingFunction(name: .linear)
+    caretLayer.add(blink, forKey: "blink")
+  }
+
+  private func updateCaretFrame() {
+    let font = self.font ?? .systemFont(ofSize: 21, weight: .regular)
+    let textWidth = (stringValue as NSString).size(withAttributes: [.font: font]).width
+    let placeholderWidth = ("Search projects" as NSString).size(withAttributes: [.font: font]).width
+    let visibleWidth = stringValue.isEmpty ? placeholderWidth : textWidth
+    let x = min(bounds.width - 18, max(16, 16 + visibleWidth + 3))
+    caretLayer.frame = CGRect(x: x, y: (bounds.height - 24) / 2, width: 2, height: 24)
+    caretLayer.isHidden = !windowIsKeyAndFieldIsFirstResponder()
+  }
+
+  private func windowIsKeyAndFieldIsFirstResponder() -> Bool {
+    window?.isKeyWindow == true
+      && (window?.firstResponder === self || window?.firstResponder === currentEditor())
+  }
+}
+
+@MainActor
+final class ProjectRowView: NSTableRowView {
+  override var isSelected: Bool {
+    didSet {
+      needsDisplay = true
+    }
+  }
+
+  override func drawSelection(in dirtyRect: NSRect) {
+    drawSelectedBackground()
+  }
+
+  override func drawBackground(in dirtyRect: NSRect) {
+    guard isSelected else { return }
+    drawSelectedBackground()
+  }
+
+  private func drawSelectedBackground() {
+    let rect = bounds.insetBy(dx: 0, dy: 3)
+    let path = NSBezierPath(roundedRect: rect, xRadius: 6, yRadius: 6)
+    PaletteColor.selected.setFill()
+    path.fill()
+    PaletteColor.accent.withAlphaComponent(0.18).setStroke()
+    path.lineWidth = 1
+    path.stroke()
+  }
+}
+
+@MainActor
+final class ProjectCellView: NSView {
+  private let nameLabel = NSTextField(labelWithString: "")
+  private let metaLabel = NSTextField(labelWithString: "")
+  private let aliasLabel = NSTextField(labelWithString: "")
+  private let aliasContainer = NSView()
+
+  override init(frame frameRect: NSRect) {
+    super.init(frame: frameRect)
+    buildUI()
+  }
+
+  required init?(coder: NSCoder) {
+    super.init(coder: coder)
+    buildUI()
+  }
+
+  func configure(with result: SearchResult) {
+    let project = result.project
+    nameLabel.stringValue = project.name
+    metaLabel.stringValue = "\(project.language)  -  \(project.path)"
+    aliasLabel.stringValue = result.matchedAlias ?? project.aliases.first ?? ""
+    aliasContainer.isHidden = aliasLabel.stringValue.isEmpty
+  }
+
+  private func buildUI() {
+    translatesAutoresizingMaskIntoConstraints = true
+
+    nameLabel.translatesAutoresizingMaskIntoConstraints = false
+    nameLabel.font = .systemFont(ofSize: 14, weight: .semibold)
+    nameLabel.textColor = PaletteColor.text
+    nameLabel.lineBreakMode = .byTruncatingTail
+
+    metaLabel.translatesAutoresizingMaskIntoConstraints = false
+    metaLabel.font = .monospacedSystemFont(ofSize: 11, weight: .regular)
+    metaLabel.textColor = PaletteColor.muted
+    metaLabel.lineBreakMode = .byTruncatingMiddle
+
+    aliasContainer.translatesAutoresizingMaskIntoConstraints = false
+    aliasContainer.wantsLayer = true
+    aliasContainer.layer?.backgroundColor = PaletteColor.badge.cgColor
+    aliasContainer.layer?.cornerRadius = 4
+    aliasContainer.layer?.masksToBounds = true
+
+    aliasLabel.translatesAutoresizingMaskIntoConstraints = false
+    aliasLabel.font = .monospacedSystemFont(ofSize: 10.5, weight: .medium)
+    aliasLabel.textColor = PaletteColor.muted
+    aliasLabel.lineBreakMode = .byTruncatingTail
+
+    addSubview(nameLabel)
+    addSubview(metaLabel)
+    addSubview(aliasContainer)
+    aliasContainer.addSubview(aliasLabel)
+
+    NSLayoutConstraint.activate([
+      nameLabel.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 12),
+      nameLabel.topAnchor.constraint(equalTo: topAnchor, constant: 5),
+      nameLabel.trailingAnchor.constraint(lessThanOrEqualTo: aliasContainer.leadingAnchor, constant: -8),
+
+      aliasContainer.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -12),
+      aliasContainer.centerYAnchor.constraint(equalTo: nameLabel.centerYAnchor),
+      aliasContainer.heightAnchor.constraint(equalToConstant: 17),
+      aliasContainer.widthAnchor.constraint(lessThanOrEqualToConstant: 160),
+
+      aliasLabel.leadingAnchor.constraint(equalTo: aliasContainer.leadingAnchor, constant: 6),
+      aliasLabel.trailingAnchor.constraint(equalTo: aliasContainer.trailingAnchor, constant: -6),
+      aliasLabel.centerYAnchor.constraint(equalTo: aliasContainer.centerYAnchor),
+
+      metaLabel.leadingAnchor.constraint(equalTo: nameLabel.leadingAnchor),
+      metaLabel.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -12),
+      metaLabel.topAnchor.constraint(equalTo: nameLabel.bottomAnchor, constant: 1),
+    ])
   }
 }
 
@@ -383,6 +587,7 @@ final class LauncherController: NSObject, NSTableViewDataSource, NSTableViewDele
     panel.contentView?.layoutSubtreeIfNeeded()
     panel.contentView?.displayIfNeeded()
     panel.makeFirstResponder(searchField)
+    searchField.refreshCaret()
 
     DispatchQueue.main.async { [weak self] in
       guard let self else { return }
@@ -504,20 +709,25 @@ final class LauncherController: NSObject, NSTableViewDataSource, NSTableViewDele
   func tableView(_ tableView: NSTableView, viewFor tableColumn: NSTableColumn?, row: Int) -> NSView?
   {
     let identifier = NSUserInterfaceItemIdentifier("ProjectCell")
-    let textField: NSTextField
-    if let existing = tableView.makeView(withIdentifier: identifier, owner: self) as? NSTextField {
-      textField = existing
+    let cell: ProjectCellView
+    if let existing = tableView.makeView(withIdentifier: identifier, owner: self) as? ProjectCellView {
+      cell = existing
     } else {
-      textField = NSTextField(labelWithString: "")
-      textField.identifier = identifier
-      textField.font = .systemFont(ofSize: 14, weight: .medium)
-      textField.lineBreakMode = .byTruncatingMiddle
+      cell = ProjectCellView()
+      cell.identifier = identifier
     }
-    let project = results[row].project
-    let aliasText = project.aliases.isEmpty ? "-" : project.aliases.joined(separator: ",")
-    textField.stringValue =
-      "\(project.name)  -  alias \(aliasText)  -  \(project.id)  -  \(project.language)  -  \(project.path)"
-    return textField
+    cell.configure(with: results[row])
+    return cell
+  }
+
+  func tableView(_ tableView: NSTableView, rowViewForRow row: Int) -> NSTableRowView? {
+    let identifier = NSUserInterfaceItemIdentifier("ProjectRow")
+    if let existing = tableView.makeView(withIdentifier: identifier, owner: self) as? ProjectRowView {
+      return existing
+    }
+    let rowView = ProjectRowView()
+    rowView.identifier = identifier
+    return rowView
   }
 
   func controlTextDidChange(_ obj: Notification) {
@@ -558,16 +768,15 @@ final class LauncherController: NSObject, NSTableViewDataSource, NSTableViewDele
 
     let content = NSView()
     content.wantsLayer = true
-    content.layer?.backgroundColor = NSColor.windowBackgroundColor.cgColor
+    content.layer?.backgroundColor = PaletteColor.background.cgColor
     content.layer?.cornerRadius = 14
+    content.layer?.borderColor = PaletteColor.border.cgColor
+    content.layer?.borderWidth = 1
     content.layer?.masksToBounds = true
     panel.contentView = content
 
     searchField.translatesAutoresizingMaskIntoConstraints = false
     searchField.font = .systemFont(ofSize: 22, weight: .regular)
-    searchField.placeholderString = "Search projects"
-    searchField.isBezeled = true
-    searchField.drawsBackground = true
     searchField.isEditable = false
     searchField.isSelectable = false
     searchField.delegate = self
@@ -581,33 +790,41 @@ final class LauncherController: NSObject, NSTableViewDataSource, NSTableViewDele
     scrollView.translatesAutoresizingMaskIntoConstraints = false
     scrollView.hasVerticalScroller = true
     scrollView.borderType = .noBorder
+    scrollView.drawsBackground = false
+    scrollView.scrollerStyle = .overlay
 
-    tableView.addTableColumn(NSTableColumn(identifier: NSUserInterfaceItemIdentifier("Project")))
+    let column = NSTableColumn(identifier: NSUserInterfaceItemIdentifier("Project"))
+    column.resizingMask = .autoresizingMask
+    tableView.addTableColumn(column)
     tableView.headerView = nil
-    tableView.rowHeight = 34
+    tableView.columnAutoresizingStyle = .uniformColumnAutoresizingStyle
+    tableView.rowHeight = 44
     tableView.dataSource = self
     tableView.delegate = self
     tableView.usesAlternatingRowBackgroundColors = false
+    tableView.backgroundColor = .clear
+    tableView.selectionHighlightStyle = .none
+    tableView.intercellSpacing = NSSize(width: 0, height: 0)
     scrollView.documentView = tableView
 
     footerLabel.translatesAutoresizingMaskIntoConstraints = false
     footerLabel.font = .monospacedSystemFont(ofSize: 11, weight: .regular)
-    footerLabel.textColor = .secondaryLabelColor
+    footerLabel.textColor = PaletteColor.dim
 
     content.addSubview(searchField)
     content.addSubview(scrollView)
     content.addSubview(footerLabel)
 
     NSLayoutConstraint.activate([
-      searchField.topAnchor.constraint(equalTo: content.topAnchor, constant: 20),
-      searchField.leadingAnchor.constraint(equalTo: content.leadingAnchor, constant: 20),
-      searchField.trailingAnchor.constraint(equalTo: content.trailingAnchor, constant: -20),
-      searchField.heightAnchor.constraint(equalToConstant: 42),
+      searchField.topAnchor.constraint(equalTo: content.topAnchor, constant: 18),
+      searchField.leadingAnchor.constraint(equalTo: content.leadingAnchor, constant: 16),
+      searchField.trailingAnchor.constraint(equalTo: content.trailingAnchor, constant: -16),
+      searchField.heightAnchor.constraint(equalToConstant: 48),
 
-      scrollView.topAnchor.constraint(equalTo: searchField.bottomAnchor, constant: 16),
-      scrollView.leadingAnchor.constraint(equalTo: content.leadingAnchor, constant: 20),
-      scrollView.trailingAnchor.constraint(equalTo: content.trailingAnchor, constant: -20),
-      scrollView.bottomAnchor.constraint(equalTo: footerLabel.topAnchor, constant: -12),
+      scrollView.topAnchor.constraint(equalTo: searchField.bottomAnchor, constant: 10),
+      scrollView.leadingAnchor.constraint(equalTo: content.leadingAnchor, constant: 16),
+      scrollView.trailingAnchor.constraint(equalTo: content.trailingAnchor, constant: -16),
+      scrollView.bottomAnchor.constraint(equalTo: footerLabel.topAnchor, constant: -8),
 
       footerLabel.leadingAnchor.constraint(equalTo: content.leadingAnchor, constant: 20),
       footerLabel.trailingAnchor.constraint(equalTo: content.trailingAnchor, constant: -20),
@@ -730,6 +947,7 @@ final class LauncherController: NSObject, NSTableViewDataSource, NSTableViewDele
   private func setSearchQuery(_ value: String) {
     queryValue = normalizeSearchQuery(value)
     searchField.stringValue = queryValue
+    searchField.refreshCaret()
   }
 
   private func switchToTauri(cycleID: String) {
