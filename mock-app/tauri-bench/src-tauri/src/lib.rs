@@ -346,23 +346,38 @@ fn score_token(token: &str, item: &IndexedProject) -> i32 {
     if item.id == token {
         return 1_400;
     }
-    if token.len() >= 3 && item.id.contains(token) {
-        return 1_000;
-    }
     if item.name.starts_with(token) {
         return 1_200 - item.name.len().min(300) as i32;
     }
     if token.len() == 1 && word_has_prefix(token, &item.name) {
         return 600;
     }
-    if token.len() >= 3 && item.name.contains(token) {
-        return 900 - item.name.len().min(250) as i32;
-    }
     if token.len() >= 3 && item.aliases.contains(token) {
         return 1_100;
     }
+    if token.len() >= 2 && word_has_prefix(token, &item.name) {
+        return 1_050 - item.name.len().min(280) as i32;
+    }
+    if token.len() >= 3 && item.id.contains(token) {
+        return 1_000;
+    }
+    if token.len() >= 3 && item.name.contains(token) {
+        return 900 - item.name.len().min(250) as i32;
+    }
     if token.len() >= 3 && item.tags.contains(token) {
         return 700;
+    }
+    if token.len() >= 2 && item.aliases.contains(token) {
+        return 680;
+    }
+    if token.len() >= 2 && item.id.contains(token) {
+        return 660;
+    }
+    if token.len() >= 2 && item.name.contains(token) {
+        return 620 - item.name.len().min(250) as i32;
+    }
+    if token.len() >= 2 && item.tags.contains(token) {
+        return 580;
     }
     if token.len() >= 3 && item.path.contains(token) {
         return 450;
@@ -508,10 +523,25 @@ fn frontend_ready(state: tauri::State<'_, AppState>) -> ViewState {
 }
 
 #[tauri::command]
-fn palette_rendered(state: tauri::State<'_, AppState>, cycle_id: Option<String>) {
-    state
-        .logger
-        .log("palette_rendered", cycle_id.as_deref(), json!({}));
+fn frontend_loaded(app: AppHandle, state: tauri::State<'_, AppState>) {
+    state.logger.log("frontend_loaded", None, json!({}));
+    if let Some(window) = app.get_webview_window("main") {
+        let _ = window.hide();
+        let _ = window.center();
+    }
+}
+
+#[tauri::command]
+fn palette_rendered(
+    state: tauri::State<'_, AppState>,
+    cycle_id: Option<String>,
+    frontend_apply_to_render_ms: Option<f64>,
+) {
+    state.logger.log(
+        "palette_rendered",
+        cycle_id.as_deref(),
+        json!({ "frontend_apply_to_render_ms": frontend_apply_to_render_ms }),
+    );
 }
 
 #[tauri::command]
@@ -897,9 +927,30 @@ fn show_palette<R: Runtime>(app: &AppHandle<R>, source: &str) {
     if let Some(outcome) = search_log {
         log_search(&state, &view, &outcome);
     }
+    let emit_start = Instant::now();
+    apply_state_to_window(&window, &view);
+    state.logger.log(
+        "state_emit_completed",
+        view.cycle_id.as_deref(),
+        json!({
+            "metric": "state_emit_ms",
+            "duration_ms": emit_start.elapsed().as_secs_f64() * 1000.0,
+        }),
+    );
+    state
+        .logger
+        .log("native_show_requested", view.cycle_id.as_deref(), json!({}));
+    let native_show_start = Instant::now();
     let _ = window.show();
     let _ = window.set_focus();
-    apply_state_to_window(&window, &view);
+    state.logger.log(
+        "native_show_completed",
+        view.cycle_id.as_deref(),
+        json!({
+            "metric": "native_show_ms",
+            "duration_ms": native_show_start.elapsed().as_secs_f64() * 1000.0,
+        }),
+    );
 }
 
 fn hide_palette<R: Runtime>(app: &AppHandle<R>) {
@@ -966,6 +1017,7 @@ pub fn run() {
         )
         .invoke_handler(tauri::generate_handler![
             frontend_ready,
+            frontend_loaded,
             palette_rendered,
             handle_key,
             select_index,
@@ -988,7 +1040,10 @@ pub fn run() {
                 }))?;
             app.global_shortcut().register("Control+KeyM")?;
             if let Some(window) = app.get_webview_window("main") {
-                let _ = window.center();
+                let _ = window.set_position(tauri::Position::Physical(
+                    tauri::PhysicalPosition::new(-10_000, -10_000),
+                ));
+                let _ = window.show();
             }
             Ok(())
         })

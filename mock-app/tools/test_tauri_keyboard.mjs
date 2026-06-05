@@ -53,6 +53,12 @@ await page.addInitScript(() => {
     ["code-projects-kanade-reference", "kanade-reference"],
     ["code-projects-kulms-ta-extension", "kulms-ta-extension"]
   ];
+  const prResults = [
+    ["manual-project-manager", "Project Manager"],
+    ["code-projects-agent-config-sync", "agent-config-sync"],
+    ["code-projects-anki-connect-extension", "anki-connect-extension"],
+    ["code-projects-anki-mcp", "anki-mcp"]
+  ];
   const defaultResults = Array.from({ length: 20 }, (_, index) => [`default-${index}`, `Default Project ${index}`]);
 
   function toItem([id, name]) {
@@ -90,6 +96,16 @@ await page.addInitScript(() => {
         isDebug: false
       }));
       state.totalMatches = state.results.length;
+    } else if (state.query === "pr") {
+      state.results = prResults.map(([id, name]) => ({
+        id,
+        name,
+        path: `/tmp/${name}`,
+        aliases: [name.toLowerCase()],
+        language: "Project",
+        isDebug: false
+      }));
+      state.totalMatches = state.results.length;
     } else {
       state.results = defaultResults.map(toItem);
       state.totalMatches = state.results.length;
@@ -108,6 +124,7 @@ await page.addInitScript(() => {
     invoke: async (cmd, args) => {
       window.__IPC_CALLS__.push({ cmd, args });
       if (cmd === "frontend_ready") return { ...state };
+      if (cmd === "frontend_loaded") return null;
       if (cmd === "palette_rendered") return null;
       if (cmd === "select_index") {
         state.selectedIndex = args.index;
@@ -123,7 +140,14 @@ await page.addInitScript(() => {
           }
         }
         if (key === "escape") state.visible = false;
-        if (key === "char:k" || key === "char:a" || key === "char:n" || key === "char:-") {
+        if (
+          key === "char:k" ||
+          key === "char:a" ||
+          key === "char:n" ||
+          key === "char:p" ||
+          key === "char:r" ||
+          key === "char:-"
+        ) {
           state.query += key.slice(5);
           applySearch();
         }
@@ -217,6 +241,21 @@ let calls = await page.evaluate(() => window.__IPC_CALLS__);
 let dispatched = calls.filter((call) => call.cmd === "open_dispatched_mock").at(-1);
 check(dispatched?.args?.query === "kan", "Enter should dispatch current query", dispatched);
 check(dispatched?.args?.selectedIndex === 2, "Enter should dispatch moved selected index", dispatched);
+
+await page.keyboard.press("Control+M");
+await page.keyboard.type("pr");
+state = await snapshot("after pr");
+check(state.query === "pr", "pr query should render", state);
+check(state.names.length >= 3, "pr should keep multiple word-search results", state);
+await page.keyboard.press("ArrowDown");
+await page.keyboard.press("ArrowDown");
+state = await snapshot("after pr arrows");
+check(state.selected === 2, "ArrowDown should move after word search", state);
+await page.keyboard.press("Enter");
+calls = await page.evaluate(() => window.__IPC_CALLS__);
+dispatched = calls.filter((call) => call.cmd === "open_dispatched_mock").at(-1);
+check(dispatched?.args?.query === "pr", "Enter after word search should dispatch pr query", dispatched);
+check(dispatched?.args?.selectedIndex === 2, "Enter after word search should dispatch moved index", dispatched);
 
 await page.keyboard.press("Control+M");
 await page.keyboard.type("kan");

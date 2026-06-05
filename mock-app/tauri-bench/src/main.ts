@@ -36,7 +36,6 @@ const rows: HTMLElement[] = [];
 let currentState: ViewState | null = null;
 let keyQueue = Promise.resolve();
 let lastRenderedCycleId: string | null = null;
-let syncQueue = Promise.resolve();
 const scrollEpsilon = 1;
 const scrollGutter = 2;
 
@@ -61,6 +60,7 @@ function ensureRows(): void {
 }
 
 function applyState(state: ViewState): void {
+  const applyStartedAt = performance.now();
   currentState = state;
   palette.dataset.visible = state.visible ? "true" : "false";
   keyCatcher.value = state.query;
@@ -105,7 +105,10 @@ function applyState(state: ViewState): void {
     if (state.cycleId && state.cycleId !== lastRenderedCycleId) {
       lastRenderedCycleId = state.cycleId;
       requestAnimationFrame(() => {
-        void invoke("palette_rendered", { cycleId: state.cycleId });
+        void invoke("palette_rendered", {
+          cycleId: state.cycleId,
+          frontendApplyToRenderMs: performance.now() - applyStartedAt
+        });
       });
     }
   }
@@ -163,19 +166,7 @@ document.addEventListener("compositionend", (event) => event.preventDefault(), t
 
 window.__TAURI_BENCH_APPLY_STATE = applyState;
 
-function syncFromBackend(): void {
-  syncQueue = syncQueue
-    .then(async () => {
-      const state = await invoke<ViewState>("frontend_ready");
-      applyState(state);
-    })
-    .catch((error) => {
-      footerEl.textContent = `error: ${String(error)}`;
-    });
-}
-
-window.addEventListener("focus", syncFromBackend);
-
 const initialState = await invoke<ViewState>("frontend_ready");
 applyState(initialState);
 await invoke("palette_rendered", { cycleId: null });
+await invoke("frontend_loaded");
