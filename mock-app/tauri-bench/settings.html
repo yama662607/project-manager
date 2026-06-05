@@ -1,0 +1,35 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>TauriBench Settings</title>
+  </head>
+  <body>
+    <main class="settings">
+      <aside class="sidebar">
+        <ul id="project-list" class="project-list"></ul>
+        <div class="sidebar-actions">
+          <button id="add-project" title="Add project">+</button>
+          <button id="remove-project" title="Remove project">-</button>
+          <button id="browse-folder">Folder</button>
+          <button id="browse-workspace">File</button>
+        </div>
+      </aside>
+      <section class="detail">
+        <label>Name <input id="field-name" type="text" /></label>
+        <label>Path <input id="field-path" type="text" /></label>
+        <label>Open Paths <input id="field-openpaths" type="text" /></label>
+        <label>Aliases <input id="field-aliases" type="text" /></label>
+        <label>Tags <input id="field-tags" type="text" /></label>
+        <label>Language <input id="field-language" type="text" /></label>
+      </section>
+      <footer class="actions">
+        <span id="status" class="status"></span>
+        <button id="cancel">Cancel</button>
+        <button id="save" class="primary">Save</button>
+      </footer>
+    </main>
+    <script type="module" src="/src/settings.ts"></script>
+  </body>
+</html>

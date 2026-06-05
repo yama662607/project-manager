@@ -2,7 +2,7 @@ import { execFile } from "node:child_process";
 import { promisify } from "node:util";
 
 const execFileAsync = promisify(execFile);
-const names = ["AppKitBench", "IcedBench"];
+const names = ["AppKitBench", "IcedBench", "TauriBench", "tauri-bench"];
 
 const { stdout } = await execFileAsync("ps", ["-axo", "pid,args,rss"]);
 const rows = stdout

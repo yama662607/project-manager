@@ -1,0 +1,21 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>TauriBench</title>
+  </head>
+  <body>
+    <main id="palette" class="palette" tabindex="-1">
+      <section class="query-line" aria-label="Search projects">
+        <input id="key-catcher" class="key-catcher" readonly inputmode="none" aria-label="Keyboard input" />
+        <span id="query" class="query"></span>
+        <span id="placeholder" class="placeholder">Search projects</span>
+        <span class="caret"></span>
+      </section>
+      <section id="results" class="results" aria-label="Project results"></section>
+      <footer id="footer" class="footer"></footer>
+    </main>
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>

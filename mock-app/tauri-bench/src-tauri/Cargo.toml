@@ -1,0 +1,24 @@
+[package]
+name = "tauri-bench"
+version = "0.1.0"
+edition = "2021"
+rust-version = "1.77.2"
+
+[lib]
+name = "tauri_bench_lib"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[[bin]]
+name = "tauri-bench"
+path = "src/main.rs"
+
+[build-dependencies]
+tauri-build = { version = "2.6.2", features = [] }
+
+[dependencies]
+dirs = "6.0.0"
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+tauri = { version = "2.11.2", features = ["macos-private-api"] }
+tauri-plugin-global-shortcut = "2.3.2"
+tauri-plugin-single-instance = "2.4.2"
