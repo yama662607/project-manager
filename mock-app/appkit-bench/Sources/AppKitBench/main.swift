@@ -300,6 +300,30 @@ final class SearchEngine {
 }
 
 @MainActor
+final class SearchFieldCell: NSTextFieldCell {
+  private let horizontalInset: CGFloat = 16
+
+  override func drawingRect(forBounds rect: NSRect) -> NSRect {
+    textRect(forBounds: rect)
+  }
+
+  override func titleRect(forBounds rect: NSRect) -> NSRect {
+    textRect(forBounds: rect)
+  }
+
+  private func textRect(forBounds rect: NSRect) -> NSRect {
+    let font = self.font ?? .systemFont(ofSize: 21, weight: .regular)
+    let textHeight = ceil(font.ascender - font.descender + font.leading)
+    return NSRect(
+      x: rect.minX + horizontalInset,
+      y: rect.midY - textHeight / 2 - 1,
+      width: rect.width - horizontalInset * 2,
+      height: textHeight + 2
+    )
+  }
+}
+
+@MainActor
 final class SearchField: NSTextField {
   var onEnter: (() -> Void)?
   var onEscape: (() -> Void)?
@@ -390,6 +414,7 @@ final class SearchField: NSTextField {
   }
 
   private func configureAppearance() {
+    cell = SearchFieldCell(textCell: "")
     wantsLayer = true
     isBezeled = false
     drawsBackground = false
@@ -419,7 +444,7 @@ final class SearchField: NSTextField {
     let font = self.font ?? .systemFont(ofSize: 21, weight: .regular)
     let textWidth = (stringValue as NSString).size(withAttributes: [.font: font]).width
     let x = min(bounds.width - 18, max(16, 16 + textWidth + 3))
-    caretLayer.frame = CGRect(x: x, y: (bounds.height - 24) / 2, width: 2, height: 24)
+    caretLayer.frame = CGRect(x: x, y: (bounds.height - 24) / 2 - 1, width: 2, height: 24)
     caretLayer.isHidden = stringValue.isEmpty || !windowIsKeyAndFieldIsFirstResponder()
   }
 
@@ -526,7 +551,7 @@ final class ProjectCellView: NSView {
       nameLabel.trailingAnchor.constraint(lessThanOrEqualTo: aliasContainer.leadingAnchor, constant: -8),
 
       aliasContainer.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -12),
-      aliasContainer.centerYAnchor.constraint(equalTo: nameLabel.centerYAnchor),
+      aliasContainer.topAnchor.constraint(equalTo: topAnchor, constant: 6),
       aliasContainer.heightAnchor.constraint(equalToConstant: 17),
       aliasContainer.widthAnchor.constraint(lessThanOrEqualToConstant: 150),
 
