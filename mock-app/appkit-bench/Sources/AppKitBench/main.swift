@@ -13,8 +13,8 @@ private enum PaletteColor {
   static let muted = NSColor.white.withAlphaComponent(0.52)
   static let dim = NSColor.white.withAlphaComponent(0.34)
   static let accent = NSColor(calibratedRed: 0.843, green: 0.659, blue: 0.302, alpha: 1)
-  static let selected = NSColor(calibratedRed: 0.843, green: 0.659, blue: 0.302, alpha: 0.24)
-  static let badge = NSColor.white.withAlphaComponent(0.08)
+  static let selected = NSColor(calibratedRed: 0.843, green: 0.659, blue: 0.302, alpha: 0.15)
+  static let badge = NSColor.white.withAlphaComponent(0.07)
 }
 
 // MARK: - Config
@@ -306,6 +306,7 @@ final class SearchField: NSTextField {
   var onDeleteBackward: (() -> Void)?
   var onMoveSelection: ((Int) -> Void)?
   private let caretLayer = CALayer()
+  private let placeholderText = "Search projects"
 
   override var acceptsFirstResponder: Bool { true }
 
@@ -332,12 +333,14 @@ final class SearchField: NSTextField {
 
   override func becomeFirstResponder() -> Bool {
     let result = super.becomeFirstResponder()
+    placeholderAttributedString = nil
     updateCaretFrame()
     return result
   }
 
   override func resignFirstResponder() -> Bool {
     let result = super.resignFirstResponder()
+    restorePlaceholder()
     updateCaretFrame()
     return result
   }
@@ -391,12 +394,7 @@ final class SearchField: NSTextField {
     drawsBackground = false
     focusRingType = .none
     textColor = PaletteColor.text
-    placeholderAttributedString = NSAttributedString(
-      string: "Search projects",
-      attributes: [
-        .foregroundColor: PaletteColor.dim,
-        .font: NSFont.systemFont(ofSize: 21, weight: .regular),
-      ])
+    restorePlaceholder()
     layer?.backgroundColor = PaletteColor.panel.cgColor
     layer?.borderColor = PaletteColor.border.cgColor
     layer?.borderWidth = 1
@@ -419,9 +417,7 @@ final class SearchField: NSTextField {
   private func updateCaretFrame() {
     let font = self.font ?? .systemFont(ofSize: 21, weight: .regular)
     let textWidth = (stringValue as NSString).size(withAttributes: [.font: font]).width
-    let placeholderWidth = ("Search projects" as NSString).size(withAttributes: [.font: font]).width
-    let visibleWidth = stringValue.isEmpty ? placeholderWidth : textWidth
-    let x = min(bounds.width - 18, max(16, 16 + visibleWidth + 3))
+    let x = min(bounds.width - 18, max(16, 16 + textWidth + 3))
     caretLayer.frame = CGRect(x: x, y: (bounds.height - 24) / 2, width: 2, height: 24)
     caretLayer.isHidden = !windowIsKeyAndFieldIsFirstResponder()
   }
@@ -429,6 +425,15 @@ final class SearchField: NSTextField {
   private func windowIsKeyAndFieldIsFirstResponder() -> Bool {
     window?.isKeyWindow == true
       && (window?.firstResponder === self || window?.firstResponder === currentEditor())
+  }
+
+  private func restorePlaceholder() {
+    placeholderAttributedString = NSAttributedString(
+      string: placeholderText,
+      attributes: [
+        .foregroundColor: PaletteColor.dim,
+        .font: NSFont.systemFont(ofSize: 21, weight: .regular),
+      ])
   }
 }
 
@@ -450,13 +455,18 @@ final class ProjectRowView: NSTableRowView {
   }
 
   private func drawSelectedBackground() {
-    let rect = bounds.insetBy(dx: 0, dy: 3)
+    let rect = bounds.insetBy(dx: 0, dy: 2)
     let path = NSBezierPath(roundedRect: rect, xRadius: 6, yRadius: 6)
     PaletteColor.selected.setFill()
     path.fill()
-    PaletteColor.accent.withAlphaComponent(0.18).setStroke()
+    PaletteColor.accent.withAlphaComponent(0.25).setStroke()
     path.lineWidth = 1
     path.stroke()
+
+    let accentRect = NSRect(x: rect.minX, y: rect.minY + 6, width: 3, height: rect.height - 12)
+    let accentPath = NSBezierPath(roundedRect: accentRect, xRadius: 1.5, yRadius: 1.5)
+    PaletteColor.accent.withAlphaComponent(0.65).setFill()
+    accentPath.fill()
   }
 }
 
@@ -480,7 +490,7 @@ final class ProjectCellView: NSView {
   func configure(with result: SearchResult) {
     let project = result.project
     nameLabel.stringValue = project.name
-    metaLabel.stringValue = "\(project.language)  -  \(project.path)"
+    metaLabel.stringValue = "\(project.language)  -  \(shortDisplayPath(project.path))"
     aliasLabel.stringValue = result.matchedAlias ?? project.aliases.first ?? ""
     aliasContainer.isHidden = aliasLabel.stringValue.isEmpty
   }
@@ -489,13 +499,13 @@ final class ProjectCellView: NSView {
     translatesAutoresizingMaskIntoConstraints = true
 
     nameLabel.translatesAutoresizingMaskIntoConstraints = false
-    nameLabel.font = .systemFont(ofSize: 14, weight: .semibold)
+    nameLabel.font = .systemFont(ofSize: 13.5, weight: .semibold)
     nameLabel.textColor = PaletteColor.text
     nameLabel.lineBreakMode = .byTruncatingTail
 
     metaLabel.translatesAutoresizingMaskIntoConstraints = false
-    metaLabel.font = .monospacedSystemFont(ofSize: 11, weight: .regular)
-    metaLabel.textColor = PaletteColor.muted
+    metaLabel.font = .monospacedSystemFont(ofSize: 10.5, weight: .regular)
+    metaLabel.textColor = PaletteColor.muted.withAlphaComponent(0.9)
     metaLabel.lineBreakMode = .byTruncatingMiddle
 
     aliasContainer.translatesAutoresizingMaskIntoConstraints = false
@@ -505,7 +515,7 @@ final class ProjectCellView: NSView {
     aliasContainer.layer?.masksToBounds = true
 
     aliasLabel.translatesAutoresizingMaskIntoConstraints = false
-    aliasLabel.font = .monospacedSystemFont(ofSize: 10.5, weight: .medium)
+    aliasLabel.font = .monospacedSystemFont(ofSize: 10, weight: .medium)
     aliasLabel.textColor = PaletteColor.muted
     aliasLabel.lineBreakMode = .byTruncatingTail
 
@@ -516,13 +526,13 @@ final class ProjectCellView: NSView {
 
     NSLayoutConstraint.activate([
       nameLabel.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 12),
-      nameLabel.topAnchor.constraint(equalTo: topAnchor, constant: 5),
+      nameLabel.topAnchor.constraint(equalTo: topAnchor, constant: 4),
       nameLabel.trailingAnchor.constraint(lessThanOrEqualTo: aliasContainer.leadingAnchor, constant: -8),
 
       aliasContainer.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -12),
       aliasContainer.centerYAnchor.constraint(equalTo: nameLabel.centerYAnchor),
-      aliasContainer.heightAnchor.constraint(equalToConstant: 17),
-      aliasContainer.widthAnchor.constraint(lessThanOrEqualToConstant: 160),
+      aliasContainer.heightAnchor.constraint(equalToConstant: 16),
+      aliasContainer.widthAnchor.constraint(lessThanOrEqualToConstant: 150),
 
       aliasLabel.leadingAnchor.constraint(equalTo: aliasContainer.leadingAnchor, constant: 6),
       aliasLabel.trailingAnchor.constraint(equalTo: aliasContainer.trailingAnchor, constant: -6),
@@ -530,7 +540,7 @@ final class ProjectCellView: NSView {
 
       metaLabel.leadingAnchor.constraint(equalTo: nameLabel.leadingAnchor),
       metaLabel.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -12),
-      metaLabel.topAnchor.constraint(equalTo: nameLabel.bottomAnchor, constant: 1),
+      metaLabel.topAnchor.constraint(equalTo: nameLabel.bottomAnchor, constant: 0),
     ])
   }
 }
@@ -776,7 +786,7 @@ final class LauncherController: NSObject, NSTableViewDataSource, NSTableViewDele
     panel.contentView = content
 
     searchField.translatesAutoresizingMaskIntoConstraints = false
-    searchField.font = .systemFont(ofSize: 22, weight: .regular)
+    searchField.font = .systemFont(ofSize: 21, weight: .regular)
     searchField.isEditable = false
     searchField.isSelectable = false
     searchField.delegate = self
@@ -798,7 +808,7 @@ final class LauncherController: NSObject, NSTableViewDataSource, NSTableViewDele
     tableView.addTableColumn(column)
     tableView.headerView = nil
     tableView.columnAutoresizingStyle = .uniformColumnAutoresizingStyle
-    tableView.rowHeight = 44
+    tableView.rowHeight = 40
     tableView.dataSource = self
     tableView.delegate = self
     tableView.usesAlternatingRowBackgroundColors = false
@@ -819,7 +829,7 @@ final class LauncherController: NSObject, NSTableViewDataSource, NSTableViewDele
       searchField.topAnchor.constraint(equalTo: content.topAnchor, constant: 18),
       searchField.leadingAnchor.constraint(equalTo: content.leadingAnchor, constant: 16),
       searchField.trailingAnchor.constraint(equalTo: content.trailingAnchor, constant: -16),
-      searchField.heightAnchor.constraint(equalToConstant: 48),
+      searchField.heightAnchor.constraint(equalToConstant: 44),
 
       scrollView.topAnchor.constraint(equalTo: searchField.bottomAnchor, constant: 10),
       scrollView.leadingAnchor.constraint(equalTo: content.leadingAnchor, constant: 16),
@@ -1314,6 +1324,17 @@ private func normalizeSearchQuery(_ value: String) -> String {
   CFStringTransform(mutable, nil, kCFStringTransformToLatin, false)
   CFStringTransform(mutable, nil, kCFStringTransformStripCombiningMarks, false)
   return mutable as String
+}
+
+private func shortDisplayPath(_ path: String) -> String {
+  let homePath = FileManager.default.homeDirectoryForCurrentUser.path
+  if path == homePath {
+    return "~"
+  }
+  if path.hasPrefix(homePath + "/") {
+    return "~" + path.dropFirst(homePath.count)
+  }
+  return path
 }
 
 private func makeZedProcess(projectPaths: [String]) -> Process {
