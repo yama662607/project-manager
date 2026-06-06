@@ -105,6 +105,40 @@ struct KeyInput {
     key: String,
 }
 
+#[derive(Clone, Copy)]
+enum LaunchEditor {
+    Zed,
+    Vscode,
+    Antigravity,
+}
+
+impl LaunchEditor {
+    fn from_open_key(key: &str) -> Option<Self> {
+        match key {
+            "enter" | "open:zed" => Some(Self::Zed),
+            "open:vscode" => Some(Self::Vscode),
+            "open:antigravity" => Some(Self::Antigravity),
+            _ => None,
+        }
+    }
+
+    fn id(self) -> &'static str {
+        match self {
+            Self::Zed => "zed",
+            Self::Vscode => "vscode",
+            Self::Antigravity => "antigravity",
+        }
+    }
+
+    fn command_name(self) -> &'static str {
+        match self {
+            Self::Zed => "zed",
+            Self::Vscode => "code",
+            Self::Antigravity => "agy",
+        }
+    }
+}
+
 struct SearchOutcome {
     duration_ms: f64,
     alias_hit: String,
@@ -591,8 +625,9 @@ fn handle_key(app: AppHandle, state: tauri::State<'_, AppState>, input: KeyInput
                     selection_log = Some(start.elapsed().as_secs_f64() * 1000.0);
                 }
             }
-            "enter" => {
+            key if LaunchEditor::from_open_key(key).is_some() => {
                 if !data.results.is_empty() && data.selected_index >= 0 {
+                    let editor = LaunchEditor::from_open_key(key).unwrap_or(LaunchEditor::Zed);
                     let selected_index = (data.selected_index as usize).min(data.results.len() - 1);
                     let project = data.results[selected_index].project.clone();
                     open_request = Some((
@@ -601,6 +636,7 @@ fn handle_key(app: AppHandle, state: tauri::State<'_, AppState>, input: KeyInput
                         data.query.clone(),
                         data.active_scenario.clone(),
                         data.active_cycle_id.clone(),
+                        editor,
                     ));
                     data.visible = false;
                     hide = true;
@@ -655,7 +691,7 @@ fn handle_key(app: AppHandle, state: tauri::State<'_, AppState>, input: KeyInput
     if open_settings {
         open_settings_window_impl(&app);
     }
-    if let Some((project, selected_index, query, scenario, cycle_id)) = open_request {
+    if let Some((project, selected_index, query, scenario, cycle_id, editor)) = open_request {
         open_project_impl(
             &app,
             &state,
@@ -664,6 +700,7 @@ fn handle_key(app: AppHandle, state: tauri::State<'_, AppState>, input: KeyInput
             query,
             scenario,
             cycle_id,
+            editor,
         );
     }
     view
@@ -771,10 +808,11 @@ fn open_project_impl(
     query: String,
     scenario: String,
     cycle_id: Option<String>,
+    editor: LaunchEditor,
 ) {
     state
         .logger
-        .log("open_requested", cycle_id.as_deref(), json!({}));
+        .log("open_requested", cycle_id.as_deref(), json!({ "editor": editor.id() }));
     let start = Instant::now();
     if project.id == "debug-switch-to-appkit" {
         state.logger.log(
@@ -813,7 +851,7 @@ fn open_project_impl(
     } else {
         project.open_paths.clone()
     };
-    let result = zed_command()
+    let result = editor_command(editor)
         .args(paths)
         .stdin(Stdio::null())
         .stdout(Stdio::null())
@@ -830,38 +868,60 @@ fn open_project_impl(
                 "query": query,
                 "scenario": scenario,
                 "selected_index": selected_index,
+                "editor": editor.id(),
+                "command": editor.command_name(),
             }),
         ),
         Err(error) => state.logger.log(
             "open_dispatch_failed",
             cycle_id.as_deref(),
-            json!({ "project_id": project.id, "error": error.to_string() }),
+            json!({
+                "project_id": project.id,
+                "editor": editor.id(),
+                "command": editor.command_name(),
+                "error": error.to_string(),
+            }),
         ),
     }
 }
 
-fn zed_command() -> Command {
-    if let Some(path) = resolve_zed_command() {
+fn editor_command(editor: LaunchEditor) -> Command {
+    if let Some(path) = resolve_command(editor.command_name(), fallback_paths(editor)) {
         Command::new(path)
     } else {
         let mut command = Command::new("/usr/bin/env");
-        command.arg("zed");
+        command.arg(editor.command_name());
         command
     }
 }
 
-fn resolve_zed_command() -> Option<PathBuf> {
+fn fallback_paths(editor: LaunchEditor) -> &'static [&'static str] {
+    match editor {
+        LaunchEditor::Zed => &["/usr/local/bin/zed", "/opt/homebrew/bin/zed"],
+        LaunchEditor::Vscode => &["/usr/local/bin/code", "/opt/homebrew/bin/code"],
+        LaunchEditor::Antigravity => &["/usr/local/bin/agy", "/opt/homebrew/bin/agy"],
+    }
+}
+
+fn resolve_command(command_name: &str, fallback_paths: &[&str]) -> Option<PathBuf> {
     if let Some(path) = std::env::var_os("PATH") {
         for directory in std::env::split_paths(&path) {
-            let candidate = directory.join("zed");
+            let candidate = directory.join(command_name);
             if is_executable_file(&candidate) {
                 return Some(candidate);
             }
         }
     }
 
-    ["/usr/local/bin/zed", "/opt/homebrew/bin/zed"]
-        .into_iter()
+    if let Some(home) = std::env::var_os("HOME") {
+        let candidate = PathBuf::from(home).join(".local/bin").join(command_name);
+        if is_executable_file(&candidate) {
+            return Some(candidate);
+        }
+    }
+
+    fallback_paths
+        .iter()
         .map(PathBuf::from)
         .find(|candidate| is_executable_file(candidate))
 }

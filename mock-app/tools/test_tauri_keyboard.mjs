@@ -153,12 +153,13 @@ await page.addInitScript(() => {
         }
         if (key === "next") state.selectedIndex = Math.min(state.selectedIndex + 1, state.results.length - 1);
         if (key === "previous") state.selectedIndex = Math.max(state.selectedIndex - 1, 0);
-        if (key === "enter") {
+        if (key === "enter" || key.startsWith("open:")) {
+          const editor = key === "open:vscode" ? "vscode" : key === "open:antigravity" ? "antigravity" : "zed";
           const item = state.results[state.selectedIndex];
           if (item) {
             window.__IPC_CALLS__.push({
               cmd: "open_dispatched_mock",
-              args: { projectId: item.id, query: state.query, selectedIndex: state.selectedIndex }
+              args: { projectId: item.id, query: state.query, selectedIndex: state.selectedIndex, editor }
             });
             state.visible = false;
           }
@@ -241,6 +242,28 @@ let calls = await page.evaluate(() => window.__IPC_CALLS__);
 let dispatched = calls.filter((call) => call.cmd === "open_dispatched_mock").at(-1);
 check(dispatched?.args?.query === "kan", "Enter should dispatch current query", dispatched);
 check(dispatched?.args?.selectedIndex === 2, "Enter should dispatch moved selected index", dispatched);
+check(dispatched?.args?.editor === "zed", "Enter should dispatch zed by default", dispatched);
+
+await page.keyboard.press("Control+M");
+await page.keyboard.type("kan");
+await page.keyboard.press("Control+Enter");
+calls = await page.evaluate(() => window.__IPC_CALLS__);
+dispatched = calls.filter((call) => call.cmd === "open_dispatched_mock").at(-1);
+check(dispatched?.args?.editor === "zed", "Control+Enter should dispatch zed", dispatched);
+
+await page.keyboard.press("Control+M");
+await page.keyboard.type("kan");
+await page.keyboard.press("Meta+Enter");
+calls = await page.evaluate(() => window.__IPC_CALLS__);
+dispatched = calls.filter((call) => call.cmd === "open_dispatched_mock").at(-1);
+check(dispatched?.args?.editor === "vscode", "Command+Enter should dispatch vscode", dispatched);
+
+await page.keyboard.press("Control+M");
+await page.keyboard.type("kan");
+await page.keyboard.press("Shift+Enter");
+calls = await page.evaluate(() => window.__IPC_CALLS__);
+dispatched = calls.filter((call) => call.cmd === "open_dispatched_mock").at(-1);
+check(dispatched?.args?.editor === "antigravity", "Shift+Enter should dispatch antigravity", dispatched);
 
 await page.keyboard.press("Control+M");
 await page.keyboard.type("pr");

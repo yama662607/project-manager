@@ -120,7 +120,11 @@ function keyFromEvent(event: KeyboardEvent): string | null {
   const plain = !event.metaKey && !event.ctrlKey && !event.altKey;
 
   if (event.key === "Escape") return "escape";
-  if (event.key === "Enter") return "enter";
+  if (event.key === "Enter") {
+    if (event.metaKey && !event.ctrlKey && !event.altKey) return "open:vscode";
+    if (event.shiftKey && !event.metaKey && !event.ctrlKey && !event.altKey) return "open:antigravity";
+    return "open:zed";
+  }
   if (ctrlOnly && event.code === "KeyM") return "toggle";
   if (metaOnly && event.code === "Comma") return "settings";
   if (ctrlOnly && event.code === "KeyN") return "next";

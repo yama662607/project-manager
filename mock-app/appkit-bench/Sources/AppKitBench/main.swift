@@ -3,7 +3,34 @@ import Carbon
 import Foundation
 
 private let appName = "appkit"
-private let cachedZedCommandURL = resolveZedCommand()
+private let cachedZedCommandURL = resolveCommand(
+  "zed", fallbackPaths: ["/usr/local/bin/zed", "/opt/homebrew/bin/zed"])
+private let cachedCodeCommandURL = resolveCommand(
+  "code", fallbackPaths: ["/usr/local/bin/code", "/opt/homebrew/bin/code"])
+private let cachedAgyCommandURL = resolveCommand(
+  "agy", fallbackPaths: ["/usr/local/bin/agy", "/opt/homebrew/bin/agy"])
+
+enum LaunchEditor: String {
+  case zed
+  case vscode
+  case antigravity
+
+  var commandName: String {
+    switch self {
+    case .zed: return "zed"
+    case .vscode: return "code"
+    case .antigravity: return "agy"
+    }
+  }
+
+  var cachedCommandURL: URL? {
+    switch self {
+    case .zed: return cachedZedCommandURL
+    case .vscode: return cachedCodeCommandURL
+    case .antigravity: return cachedAgyCommandURL
+    }
+  }
+}
 
 private enum PaletteColor {
   static let background = NSColor(calibratedRed: 0.082, green: 0.09, blue: 0.106, alpha: 1)
@@ -325,7 +352,7 @@ final class SearchFieldCell: NSTextFieldCell {
 
 @MainActor
 final class SearchField: NSTextField {
-  var onEnter: (() -> Void)?
+  var onEnter: ((LaunchEditor) -> Void)?
   var onEscape: (() -> Void)?
   var onAppendText: ((String) -> Void)?
   var onDeleteBackward: (() -> Void)?
@@ -372,7 +399,7 @@ final class SearchField: NSTextField {
 
   override func keyDown(with event: NSEvent) {
     if event.keyCode == 36 {
-      onEnter?()
+      onEnter?(launchEditor(from: event))
       return
     }
     if event.keyCode == 53 {
@@ -649,7 +676,7 @@ final class LauncherController: NSObject, NSTableViewDataSource, NSTableViewDele
 
     switch event.keyCode {
     case 36:
-      openSelectedProject()
+      openSelectedProject(editor: launchEditor(from: event))
     case 53:
       hide()
     case 51:
@@ -682,7 +709,7 @@ final class LauncherController: NSObject, NSTableViewDataSource, NSTableViewDele
 
     switch event.keyCode {
     case 36:
-      openSelectedProject()
+      openSelectedProject(editor: launchEditor(from: event))
       return true
     case 53:
       hide()
@@ -774,7 +801,7 @@ final class LauncherController: NSObject, NSTableViewDataSource, NSTableViewDele
   {
     switch commandSelector {
     case #selector(NSResponder.insertNewline(_:)):
-      openSelectedProject()
+      openSelectedProject(editor: .zed)
       return true
     case #selector(NSResponder.cancelOperation(_:)):
       hide()
@@ -814,7 +841,7 @@ final class LauncherController: NSObject, NSTableViewDataSource, NSTableViewDele
     searchField.isEditable = false
     searchField.isSelectable = false
     searchField.delegate = self
-    searchField.onEnter = { [weak self] in self?.openSelectedProject() }
+    searchField.onEnter = { [weak self] editor in self?.openSelectedProject(editor: editor) }
     searchField.onEscape = { [weak self] in self?.hide() }
     searchField.onAppendText = { [weak self] value in self?.appendSearchText(value) }
     searchField.onDeleteBackward = { [weak self] in self?.deleteSearchText() }
@@ -942,7 +969,7 @@ final class LauncherController: NSObject, NSTableViewDataSource, NSTableViewDele
       ])
   }
 
-  private func openSelectedProject() {
+  private func openSelectedProject(editor: LaunchEditor) {
     let normalized = normalizeSearchQuery(queryValue)
     if normalized != queryValue { setSearchQuery(normalized) }
     if lastSearchQuery != normalized {
@@ -956,10 +983,12 @@ final class LauncherController: NSObject, NSTableViewDataSource, NSTableViewDele
       switchToTauri(cycleID: cycleID)
       return
     }
-    footerLabel.stringValue = "Opening \(project.name)..."
-    logger.log("open_requested", cycleID: cycleID)
+    footerLabel.stringValue = "Opening \(project.name) in \(editor.commandName)..."
+    logger.log("open_requested", cycleID: cycleID, fields: ["editor": editor.rawValue])
 
-    let process = makeZedProcess(projectPaths: project.openPaths.isEmpty ? [project.path] : project.openPaths)
+    let process = makeEditorProcess(
+      editor: editor,
+      projectPaths: project.openPaths.isEmpty ? [project.path] : project.openPaths)
     do {
       try process.run()
       logger.log(
@@ -969,12 +998,16 @@ final class LauncherController: NSObject, NSTableViewDataSource, NSTableViewDele
           "scenario": activeScenario,
           "query": queryValue,
           "selected_index": selected,
+          "editor": editor.rawValue,
+          "command": editor.commandName,
         ])
     } catch {
       logger.log(
         "open_dispatch_failed", cycleID: cycleID,
         fields: [
           "project_id": project.id,
+          "editor": editor.rawValue,
+          "command": editor.commandName,
           "error": error.localizedDescription,
         ])
     }
@@ -1370,29 +1403,47 @@ private func shortDisplayPath(_ path: String) -> String {
   return path
 }
 
-private func makeZedProcess(projectPaths: [String]) -> Process {
+private func launchEditor(from event: NSEvent) -> LaunchEditor {
+  let flags = event.modifierFlags.intersection(.deviceIndependentFlagsMask)
+  if flags.contains(.command) {
+    return .vscode
+  }
+  if flags.contains(.shift) && !flags.contains(.control) {
+    return .antigravity
+  }
+  return .zed
+}
+
+private func makeEditorProcess(editor: LaunchEditor, projectPaths: [String]) -> Process {
   let process = Process()
-  if let zedURL = cachedZedCommandURL {
-    process.executableURL = zedURL
+  if let commandURL = editor.cachedCommandURL {
+    process.executableURL = commandURL
     process.arguments = projectPaths
   } else {
     process.executableURL = URL(fileURLWithPath: "/usr/bin/env")
-    process.arguments = ["zed"] + projectPaths
+    process.arguments = [editor.commandName] + projectPaths
   }
   return process
 }
 
-private func resolveZedCommand() -> URL? {
+private func resolveCommand(_ commandName: String, fallbackPaths: [String]) -> URL? {
   if let path = ProcessInfo.processInfo.environment["PATH"] {
     for directory in path.split(separator: ":").map(String.init) {
-      let candidate = URL(fileURLWithPath: directory).appendingPathComponent("zed")
+      let candidate = URL(fileURLWithPath: directory).appendingPathComponent(commandName)
       if FileManager.default.isExecutableFile(atPath: candidate.path) {
         return candidate
       }
     }
   }
 
-  for path in ["/usr/local/bin/zed", "/opt/homebrew/bin/zed"] {
+  let localCandidate = FileManager.default.homeDirectoryForCurrentUser
+    .appendingPathComponent(".local/bin")
+    .appendingPathComponent(commandName)
+  if FileManager.default.isExecutableFile(atPath: localCandidate.path) {
+    return localCandidate
+  }
+
+  for path in fallbackPaths {
     if FileManager.default.isExecutableFile(atPath: path) {
       return URL(fileURLWithPath: path)
     }
