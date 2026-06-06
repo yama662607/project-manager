@@ -8,7 +8,12 @@ private let cachedZedCommandURL = resolveCommand(
 private let cachedCodeCommandURL = resolveCommand(
   "code", fallbackPaths: ["/usr/local/bin/code", "/opt/homebrew/bin/code"])
 private let cachedAgyCommandURL = resolveCommand(
-  "agy", fallbackPaths: ["/usr/local/bin/agy", "/opt/homebrew/bin/agy"])
+  "agy-ide",
+  fallbackPaths: [
+    "/usr/local/bin/agy-ide",
+    "/opt/homebrew/bin/agy-ide",
+    "\(NSHomeDirectory())/.antigravity-ide/antigravity-ide/bin/agy-ide",
+  ])
 
 enum LaunchEditor: String {
   case zed
@@ -19,7 +24,7 @@ enum LaunchEditor: String {
     switch self {
     case .zed: return "zed"
     case .vscode: return "code"
-    case .antigravity: return "agy"
+    case .antigravity: return "agy-ide"
     }
   }
 

@@ -134,7 +134,7 @@ impl LaunchEditor {
         match self {
             Self::Zed => "zed",
             Self::Vscode => "code",
-            Self::Antigravity => "agy",
+            Self::Antigravity => "agy-ide",
         }
     }
 }
@@ -899,7 +899,7 @@ fn fallback_paths(editor: LaunchEditor) -> &'static [&'static str] {
     match editor {
         LaunchEditor::Zed => &["/usr/local/bin/zed", "/opt/homebrew/bin/zed"],
         LaunchEditor::Vscode => &["/usr/local/bin/code", "/opt/homebrew/bin/code"],
-        LaunchEditor::Antigravity => &["/usr/local/bin/agy", "/opt/homebrew/bin/agy"],
+        LaunchEditor::Antigravity => &["/usr/local/bin/agy-ide", "/opt/homebrew/bin/agy-ide"],
     }
 }
 
@@ -914,9 +914,17 @@ fn resolve_command(command_name: &str, fallback_paths: &[&str]) -> Option<PathBu
     }
 
     if let Some(home) = std::env::var_os("HOME") {
-        let candidate = PathBuf::from(home).join(".local/bin").join(command_name);
+        let home_path = PathBuf::from(home);
+        let candidate = home_path.join(".local/bin").join(command_name);
         if is_executable_file(&candidate) {
             return Some(candidate);
+        }
+
+        let antigravity_candidate = home_path
+            .join(".antigravity-ide/antigravity-ide/bin")
+            .join(command_name);
+        if is_executable_file(&antigravity_candidate) {
+            return Some(antigravity_candidate);
         }
     }
 
