@@ -444,8 +444,11 @@ final class SearchField: NSTextField {
     let font = self.font ?? .systemFont(ofSize: 21, weight: .regular)
     let textWidth = (stringValue as NSString).size(withAttributes: [.font: font]).width
     let x = min(bounds.width - 18, max(16, 16 + textWidth + 3))
+    CATransaction.begin()
+    CATransaction.setDisableActions(true)
     caretLayer.frame = CGRect(x: x, y: (bounds.height - 24) / 2 - 1, width: 2, height: 24)
     caretLayer.isHidden = stringValue.isEmpty || !windowIsKeyAndFieldIsFirstResponder()
+    CATransaction.commit()
   }
 
   private func windowIsKeyAndFieldIsFirstResponder() -> Bool {
