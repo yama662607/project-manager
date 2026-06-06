@@ -1065,6 +1065,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
   }
 
   @objc private func openSettings() {
+    launcher?.hide()
     if let controller = settingsController {
       controller.showWindow(nil)
       NSApp.activate(ignoringOtherApps: true)
@@ -1154,6 +1155,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
   private func registerLocalKeyCommands() {
     localKeyMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { [weak self] event in
       guard let self else { return event }
+      let flags = event.modifierFlags.intersection(.deviceIndependentFlagsMask)
+      if flags == .command, event.keyCode == UInt16(kVK_ANSI_Comma) {
+        self.openSettings()
+        return nil
+      }
       if self.launcher?.handleLocalKey(event) == true {
         return nil
       }
