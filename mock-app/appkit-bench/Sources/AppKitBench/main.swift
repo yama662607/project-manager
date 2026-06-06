@@ -522,12 +522,12 @@ final class ProjectCellView: NSView {
 
     NSLayoutConstraint.activate([
       nameLabel.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 12),
-      nameLabel.topAnchor.constraint(equalTo: topAnchor, constant: 4),
+      nameLabel.topAnchor.constraint(equalTo: topAnchor, constant: 5),
       nameLabel.trailingAnchor.constraint(lessThanOrEqualTo: aliasContainer.leadingAnchor, constant: -8),
 
       aliasContainer.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -12),
       aliasContainer.centerYAnchor.constraint(equalTo: nameLabel.centerYAnchor),
-      aliasContainer.heightAnchor.constraint(equalToConstant: 16),
+      aliasContainer.heightAnchor.constraint(equalToConstant: 17),
       aliasContainer.widthAnchor.constraint(lessThanOrEqualToConstant: 150),
 
       aliasLabel.leadingAnchor.constraint(equalTo: aliasContainer.leadingAnchor, constant: 6),
@@ -536,7 +536,7 @@ final class ProjectCellView: NSView {
 
       metaLabel.leadingAnchor.constraint(equalTo: nameLabel.leadingAnchor),
       metaLabel.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -12),
-      metaLabel.topAnchor.constraint(equalTo: nameLabel.bottomAnchor, constant: 0),
+      metaLabel.topAnchor.constraint(equalTo: topAnchor, constant: 23),
     ])
   }
 }
@@ -803,8 +803,11 @@ final class LauncherController: NSObject, NSTableViewDataSource, NSTableViewDele
     column.resizingMask = .autoresizingMask
     tableView.addTableColumn(column)
     tableView.headerView = nil
+    if #available(macOS 11.0, *) {
+      tableView.style = .plain
+    }
     tableView.columnAutoresizingStyle = .uniformColumnAutoresizingStyle
-    tableView.rowHeight = 40
+    tableView.rowHeight = 44
     tableView.dataSource = self
     tableView.delegate = self
     tableView.usesAlternatingRowBackgroundColors = false
