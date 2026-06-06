@@ -11,10 +11,11 @@ private enum PaletteColor {
   static let border = NSColor.white.withAlphaComponent(0.14)
   static let text = NSColor.white.withAlphaComponent(0.92)
   static let muted = NSColor.white.withAlphaComponent(0.52)
+  static let secondaryText = NSColor.white.withAlphaComponent(0.42)
   static let dim = NSColor.white.withAlphaComponent(0.34)
   static let accent = NSColor(calibratedRed: 0.843, green: 0.659, blue: 0.302, alpha: 1)
-  static let selected = NSColor(calibratedRed: 0.843, green: 0.659, blue: 0.302, alpha: 0.15)
-  static let badge = NSColor.white.withAlphaComponent(0.07)
+  static let selected = NSColor(calibratedRed: 0.843, green: 0.659, blue: 0.302, alpha: 0.20)
+  static let badge = NSColor.white.withAlphaComponent(0.065)
 }
 
 // MARK: - Config
@@ -333,7 +334,7 @@ final class SearchField: NSTextField {
 
   override func becomeFirstResponder() -> Bool {
     let result = super.becomeFirstResponder()
-    placeholderAttributedString = nil
+    restorePlaceholder()
     updateCaretFrame()
     return result
   }
@@ -459,14 +460,9 @@ final class ProjectRowView: NSTableRowView {
     let path = NSBezierPath(roundedRect: rect, xRadius: 6, yRadius: 6)
     PaletteColor.selected.setFill()
     path.fill()
-    PaletteColor.accent.withAlphaComponent(0.25).setStroke()
+    PaletteColor.accent.withAlphaComponent(0.16).setStroke()
     path.lineWidth = 1
     path.stroke()
-
-    let accentRect = NSRect(x: rect.minX, y: rect.minY + 6, width: 3, height: rect.height - 12)
-    let accentPath = NSBezierPath(roundedRect: accentRect, xRadius: 1.5, yRadius: 1.5)
-    PaletteColor.accent.withAlphaComponent(0.65).setFill()
-    accentPath.fill()
   }
 }
 
@@ -499,13 +495,13 @@ final class ProjectCellView: NSView {
     translatesAutoresizingMaskIntoConstraints = true
 
     nameLabel.translatesAutoresizingMaskIntoConstraints = false
-    nameLabel.font = .systemFont(ofSize: 13.5, weight: .semibold)
+    nameLabel.font = .systemFont(ofSize: 13.5, weight: .medium)
     nameLabel.textColor = PaletteColor.text
     nameLabel.lineBreakMode = .byTruncatingTail
 
     metaLabel.translatesAutoresizingMaskIntoConstraints = false
     metaLabel.font = .monospacedSystemFont(ofSize: 10.5, weight: .regular)
-    metaLabel.textColor = PaletteColor.muted.withAlphaComponent(0.9)
+    metaLabel.textColor = PaletteColor.secondaryText
     metaLabel.lineBreakMode = .byTruncatingMiddle
 
     aliasContainer.translatesAutoresizingMaskIntoConstraints = false
@@ -516,7 +512,7 @@ final class ProjectCellView: NSView {
 
     aliasLabel.translatesAutoresizingMaskIntoConstraints = false
     aliasLabel.font = .monospacedSystemFont(ofSize: 10, weight: .medium)
-    aliasLabel.textColor = PaletteColor.muted
+    aliasLabel.textColor = PaletteColor.secondaryText.withAlphaComponent(0.95)
     aliasLabel.lineBreakMode = .byTruncatingTail
 
     addSubview(nameLabel)
