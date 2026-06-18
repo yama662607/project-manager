@@ -3,9 +3,15 @@ mod ui;
 
 use anyhow::{Context, Result};
 use crossterm::{
-    event::DisableMouseCapture,
+    event::{
+        DisableMouseCapture, KeyboardEnhancementFlags, PopKeyboardEnhancementFlags,
+        PushKeyboardEnhancementFlags,
+    },
     execute,
-    terminal::{disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen},
+    terminal::{
+        disable_raw_mode, enable_raw_mode, supports_keyboard_enhancement, EnterAlternateScreen,
+        LeaveAlternateScreen,
+    },
 };
 use config::{load_config, is_project_registered};
 use ratatui::{
@@ -20,6 +26,17 @@ fn main() -> Result<()> {
     enable_raw_mode()?;
     let mut stdout = io::stdout();
     execute!(stdout, EnterAlternateScreen, DisableMouseCapture)?;
+
+    // 拡張キーボードプロトコルを有効化（Ctrl+MとEnterを区別するため）。
+    // 対応端末でのみ有効化し、非対応端末では従来動作にフォールバックする。
+    let keyboard_enhanced = supports_keyboard_enhancement().unwrap_or(false);
+    if keyboard_enhanced {
+        execute!(
+            stdout,
+            PushKeyboardEnhancementFlags(KeyboardEnhancementFlags::DISAMBIGUATE_ESCAPE_CODES)
+        )?;
+    }
+
     let backend = CrosstermBackend::new(stdout);
     let mut terminal = Terminal::new(backend)?;
 
@@ -59,6 +76,9 @@ fn main() -> Result<()> {
     let res = app.run(&mut terminal);
 
     // ターミナル復元
+    if keyboard_enhanced {
+        execute!(terminal.backend_mut(), PopKeyboardEnhancementFlags)?;
+    }
     disable_raw_mode()?;
     execute!(
         terminal.backend_mut(),

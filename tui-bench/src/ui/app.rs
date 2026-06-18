@@ -1,5 +1,5 @@
 use super::screens::{FormField, Screen};
-use crate::config::{add_project, delete_project, update_project, AppConfig, Project};
+use crate::config::{add_project, delete_project, load_config, update_project, AppConfig, Project};
 use anyhow::Result;
 use crossterm::event::{self, Event, KeyCode, KeyEvent, KeyEventKind};
 use ratatui::{backend::Backend, Terminal, text::{Line, Text}, widgets::Wrap};
@@ -99,7 +99,7 @@ impl App {
                 ),
             ]),
             Line::from(vec![
-                Span::styled("n: 新規 | e: 編集 | d: 削除 | q: 終了", Style::default().fg(Color::DarkGray)),
+                Span::styled("n: 新規 | e: 編集 | d: 削除 | Ctrl+M: 更新 | q: 終了", Style::default().fg(Color::DarkGray)),
             ]),
         ];
 
@@ -565,6 +565,12 @@ impl App {
         match key.code {
             KeyCode::Char('q') | KeyCode::Esc | KeyCode::Char('\x1b') => {
                 self.should_quit = true;
+            }
+            // Ctrl+M: 設定ファイルをディスクから再読み込み（他アプリの変更を反映）
+            KeyCode::Char('m') if key.modifiers.contains(crossterm::event::KeyModifiers::CONTROL) => {
+                self.config = load_config();
+                // 選択位置を有効範囲にクランプ
+                *selected_index = (*selected_index).min(self.config.projects.len().saturating_sub(1));
             }
             // Ctrl+N / Ctrl+P: ナビゲーション（無条件Charより先に判定）
             KeyCode::Char('n') if key.modifiers.contains(crossterm::event::KeyModifiers::CONTROL) => {

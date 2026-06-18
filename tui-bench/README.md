@@ -45,7 +45,12 @@ pm
 - `n`: 新規追加（New）
 - `e`: 選択項目を編集（Edit）
 - `d`: 選択項目を削除（Delete）
+- `Ctrl+M`: 設定ファイルを再読み込み（他アプリの変更を反映）
 - `q`/`Escape`: 終了
+
+> `Ctrl+M` は拡張キーボードプロトコル（kitty keyboard protocol）対応端末
+> （Ghostty / Kitty / WezTerm / foot など）でのみ動作します。非対応端末では
+> `Ctrl+M` は `Enter` と区別できないため無効です。
 
 #### 追加・編集フォーム
 - `Enter`: 次のフィールドへ（最後で保存）
