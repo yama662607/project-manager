@@ -851,6 +851,7 @@ fn open_project_impl(
     } else {
         project.open_paths.clone()
     };
+    let paths = expand_paths_for_editor(&paths, editor);
     let result = editor_command(editor)
         .args(paths)
         .stdin(Stdio::null())
@@ -883,6 +884,62 @@ fn open_project_impl(
             }),
         ),
     }
+}
+
+/// VS Code は `.code-workspace` をネイティブ解釈できるためそのまま。
+/// Zed / Antigravity は解釈できないため、構成フォルダへ展開する。
+fn expand_paths_for_editor(paths: &[String], editor: LaunchEditor) -> Vec<String> {
+    if matches!(editor, LaunchEditor::Vscode) {
+        return paths.to_vec();
+    }
+    let mut expanded: Vec<String> = Vec::with_capacity(paths.len());
+    for path in paths {
+        if path.ends_with(".code-workspace") {
+            match expand_workspace_folders(path) {
+                Ok(folders) => expanded.extend(folders),
+                // 展開失敗時は親ディレクトリを開き、テキスト表示を回避する
+                Err(_) => expanded.push(workspace_parent_dir(path)),
+            }
+        } else {
+            expanded.push(path.clone());
+        }
+    }
+    expanded
+}
+
+fn expand_workspace_folders(workspace_path: &str) -> Result<Vec<String>, String> {
+    let data = fs::read_to_string(workspace_path).map_err(|e| e.to_string())?;
+    let parsed: Value = serde_json::from_str(&data).map_err(|e| e.to_string())?;
+    let parent = Path::new(workspace_path)
+        .parent()
+        .ok_or_else(|| "no parent directory".to_string())?;
+    let folders = parsed
+        .get("folders")
+        .and_then(Value::as_array)
+        .ok_or_else(|| "no folders array".to_string())?;
+    let mut result = Vec::new();
+    for entry in folders {
+        let rel = entry
+            .get("path")
+            .and_then(Value::as_str)
+            .ok_or_else(|| "folder entry without path".to_string())?;
+        let joined = parent.join(rel);
+        let abs = fs::canonicalize(&joined)
+            .map(|p| p.to_string_lossy().into_owned())
+            .unwrap_or_else(|_| joined.to_string_lossy().into_owned());
+        result.push(abs);
+    }
+    if result.is_empty() {
+        return Err("empty folders".to_string());
+    }
+    Ok(result)
+}
+
+fn workspace_parent_dir(workspace_path: &str) -> String {
+    Path::new(workspace_path)
+        .parent()
+        .map(|p| p.to_string_lossy().into_owned())
+        .unwrap_or_else(|| workspace_path.to_string())
 }
 
 fn editor_command(editor: LaunchEditor) -> Command {
@@ -1117,4 +1174,90 @@ pub fn run() {
         })
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn unique_tmp(tag: &str) -> PathBuf {
+        let nanos = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap()
+            .as_nanos();
+        std::env::temp_dir().join(format!("pm-ws-{tag}-{nanos}"))
+    }
+
+    fn write_workspace(dir: &Path, name: &str, folders_json: &str) -> PathBuf {
+        let content = format!("{{\"folders\":{folders_json}}}");
+        let path = dir.join(name);
+        fs::write(&path, content).unwrap();
+        path
+    }
+
+    #[test]
+    fn expand_workspace_folders_resolves_relative_paths() {
+        let tmp = unique_tmp("rel");
+        let root = tmp.join("root");
+        let sibling = tmp.join("sibling");
+        fs::create_dir_all(&root).unwrap();
+        fs::create_dir_all(&sibling).unwrap();
+
+        let ws = write_workspace(
+            &root,
+            "x.code-workspace",
+            r#"[{"path":"."},{"path":"../sibling"}]"#,
+        );
+
+        let folders = expand_workspace_folders(ws.to_str().unwrap()).unwrap();
+        assert_eq!(folders.len(), 2);
+        assert!(folders.iter().all(|p| Path::new(p).is_absolute()));
+        assert!(folders[0].ends_with("root"));
+        assert!(folders[1].ends_with("sibling"));
+
+        fs::remove_dir_all(&tmp).ok();
+    }
+
+    #[test]
+    fn vscode_keeps_workspace_file_as_is() {
+        let paths = vec!["/tmp/foo.code-workspace".to_string()];
+        let out = expand_paths_for_editor(&paths, LaunchEditor::Vscode);
+        assert_eq!(out, paths);
+    }
+
+    #[test]
+    fn non_vscode_keeps_plain_directory() {
+        let paths = vec!["/tmp/some-dir".to_string()];
+        let out = expand_paths_for_editor(&paths, LaunchEditor::Zed);
+        assert_eq!(out, paths);
+    }
+
+    #[test]
+    fn non_vscode_expands_valid_workspace() {
+        let tmp = unique_tmp("valid");
+        fs::create_dir_all(&tmp).unwrap();
+        let ws = write_workspace(&tmp, "y.code-workspace", r#"[{"path":"."}]"#);
+
+        let paths = vec![ws.to_string_lossy().to_string()];
+        let out = expand_paths_for_editor(&paths, LaunchEditor::Zed);
+        assert_eq!(out.len(), 1);
+        assert!(Path::new(&out[0]).is_absolute());
+
+        fs::remove_dir_all(&tmp).ok();
+    }
+
+    #[test]
+    fn non_vscode_falls_back_to_parent_on_invalid_workspace() {
+        let tmp = unique_tmp("bad");
+        fs::create_dir_all(&tmp).unwrap();
+        let ws = tmp.join("bad.code-workspace");
+        fs::write(&ws, "not json").unwrap();
+
+        let paths = vec![ws.to_string_lossy().to_string()];
+        let out = expand_paths_for_editor(&paths, LaunchEditor::Antigravity);
+        assert_eq!(out.len(), 1);
+        assert_eq!(Path::new(&out[0]), tmp.as_path());
+
+        fs::remove_dir_all(&tmp).ok();
+    }
 }
