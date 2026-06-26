@@ -26,3 +26,8 @@ mock-app/wails-bench/build/
 
 # Misc
 *.log
+data_backup/
+project-manager-export.tar.gz
+
+# Claude Code (local)
+.claude/

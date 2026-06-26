@@ -38,18 +38,26 @@ Each project record looks like:
 }
 ```
 
-## pm (TUI)
+## Installation
 
-The TUI is the simplest way to add the directory you are standing in:
+To build and install the TUI project manager (`pm`) on your Mac:
 
 ```bash
-cd path/to/project-manager/tui-bench
-cargo build --release
-cd /path/to/your-project
-pm   # Quick Add: press Enter to register the current directory
+# Clone the repository
+git clone <repository_url> project-manager
+cd project-manager
+
+# Run the installation script
+./install.sh
 ```
 
-See [`tui-bench/README.md`](tui-bench/README.md) for keybindings and details.
+The script will:
+- Check and install required runtimes (`rust`, `bun`) using `mise` if available.
+- Build the `pm` tool in release mode.
+- Install the `pm` binary to `~/.local/bin`.
+- Guide you on adding `~/.local/bin` to your `PATH` if it is not already there.
+
+See [`tui-bench/README.md`](tui-bench/README.md) for keybindings and usage details.
 
 > **Note:** `mock-app/shared/projects.json` and
 > `mock-app/wails-bench/resources/projects.json` contain synthetic sample data
